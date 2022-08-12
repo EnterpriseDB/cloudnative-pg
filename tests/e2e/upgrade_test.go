@@ -56,7 +56,7 @@ We test the following:
 * We reply all the previous tests, but we enable the online upgrade in the final CLuster.
 */
 
-var _ = Describe("Upgrade", Label(tests.LabelUpgrade, tests.LabelNoOpenshift), Ordered, Serial, func() {
+var _ = FDescribe("Upgrade", Label(tests.LabelUpgrade, tests.LabelNoOpenshift), Ordered, Serial, func() {
 	const (
 		operatorNamespace   = "cnpg-system"
 		configName          = "cnpg-controller-manager-config"
