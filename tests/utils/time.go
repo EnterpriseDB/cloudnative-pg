@@ -23,7 +23,7 @@ import (
 
 // GetCurrentTimestamp getting current time stamp from postgres server
 func GetCurrentTimestamp(namespace, clusterName string, env *TestingEnvironment) (string, error) {
-	commandTimeout := time.Second * 5
+	commandTimeout := time.Second * 6
 	primaryPodInfo, err := env.GetClusterPrimary(namespace, clusterName)
 	if err != nil {
 		return "", err
