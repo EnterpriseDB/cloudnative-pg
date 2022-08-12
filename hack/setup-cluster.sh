@@ -54,7 +54,7 @@ PGBOUNCER_IMG=${PGBOUNCER_IMG:-$(grep 'DefaultPgbouncerImage.*=' "${ROOT_DIR}/pk
 MINIO_IMG=${MINIO_IMG:-$(grep 'minioImage.*=' "${ROOT_DIR}/tests/utils/minio.go"  | cut -f 2 -d \")}
 APACHE_IMG=${APACHE_IMG:-"httpd"}
 
-HELPER_IMGS=($POSTGRES_IMG $POSTGRES_UPDATE_IMG $PGBOUNCER_IMG $MINIO_IMG $APACHE_IMG)
+HELPER_IMGS=("$POSTGRES_IMG" "$POSTGRES_UPDATE_IMG" "$PGBOUNCER_IMG" "$MINIO_IMG" "$APACHE_IMG")
 # #########################################################################
 
 # Colors (only if using a terminal)

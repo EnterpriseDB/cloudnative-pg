@@ -70,7 +70,6 @@ fi
 # The RC return code will be non-zero iff either the two `jq` calls has a non-zero exit
 # NOTE: the ginkgo calls may have non-zero exits, with E2E tests that fail but could be 'ignore-fail'
 RC=0
-RC_GINKGO1=0
 if [[ "${TEST_UPGRADE_TO_V1}" != "false" ]]; then
   # Generate a manifest for the operator after the api upgrade
   # TODO: this is almost a "make deploy". Refactor.
@@ -92,7 +91,7 @@ if [[ "${TEST_UPGRADE_TO_V1}" != "false" ]]; then
   mkdir -p "${ROOT_DIR}/tests/e2e/out"
   # Unset DEBUG to prevent k8s from spamming messages
   unset DEBUG
-  ginkgo --nodes=1 --slow-spec-threshold=5m --label-filter "upgrade" --output-dir "${ROOT_DIR}/tests/e2e/out" --json-report  "upgrade_report.json" -v "${ROOT_DIR}/tests/e2e/..." || RC_GINKGO1=$?
+  ginkgo --nodes=1 --slow-spec-threshold=5m --label-filter "upgrade" --output-dir "${ROOT_DIR}/tests/e2e/out" --json-report  "upgrade_report.json" -v "${ROOT_DIR}/tests/e2e/..."
 
   # Report if there are any tests that failed and did NOT have an "ignore-fails" label
   jq -e -c -f "${ROOT_DIR}/hack/e2e/test-report.jq" "${ROOT_DIR}/tests/e2e/out/upgrade_report.json" || RC=$?
