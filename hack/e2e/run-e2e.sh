@@ -70,7 +70,6 @@ fi
 # The RC return code will be non-zero iff either the two `jq` calls has a non-zero exit
 # NOTE: the ginkgo calls may have non-zero exits, with E2E tests that fail but could be 'ignore-fail'
 RC=0
-RC_GINKGO1=0
 if [[ "${TEST_UPGRADE_TO_V1}" != "false" ]]; then
   # Generate a manifest for the operator after the api upgrade
   # TODO: this is almost a "make deploy". Refactor.
@@ -92,44 +91,10 @@ if [[ "${TEST_UPGRADE_TO_V1}" != "false" ]]; then
   mkdir -p "${ROOT_DIR}/tests/e2e/out"
   # Unset DEBUG to prevent k8s from spamming messages
   unset DEBUG
-  ginkgo --nodes=1 --slow-spec-threshold=5m --label-filter "upgrade" --output-dir "${ROOT_DIR}/tests/e2e/out" --json-report  "upgrade_report.json" -v "${ROOT_DIR}/tests/e2e/..." || RC_GINKGO1="$?"
+  ginkgo --nodes=1 --slow-spec-threshold=5m --label-filter "upgrade" --output-dir "${ROOT_DIR}/tests/e2e/out" --json-report  "upgrade_report.json" -v "${ROOT_DIR}/tests/e2e/..." || RC="$?"
 
   # Report if there are any tests that failed and did NOT have an "ignore-fails" label
   jq -e -c -f "${ROOT_DIR}/hack/e2e/test-report.jq" "${ROOT_DIR}/tests/e2e/out/upgrade_report.json" || RC=$?
-fi
-
-CONTROLLER_IMG="${CONTROLLER_IMG}" \
-  POSTGRES_IMAGE_NAME="${POSTGRES_IMG}" \
-  make -C "${ROOT_DIR}" deploy
-kubectl wait --for=condition=Available --timeout=2m \
-  -n cnpg-system deployments \
-  cnpg-controller-manager
-
-# Unset DEBUG to prevent k8s from spamming messages
-unset DEBUG
-
-# Build kubectl-cnpg and export its path
-make build
-export PATH=${ROOT_DIR}/bin/:${PATH}
-
-mkdir -p "${ROOT_DIR}/tests/e2e/out"
-# Create at most 4 testing nodes. Using -p instead of --nodes
-# would create CPUs-1 nodes and saturate the testing server
-RC_GINKGO2=0
-ginkgo --nodes=4 --timeout 3h --slow-spec-threshold 5m --label-filter "!(upgrade)" --output-dir "${ROOT_DIR}/tests/e2e/out/" --json-report  "report.json" -v "${ROOT_DIR}/tests/e2e/..." || RC_GINKGO2=$?
-
-# Report if there are any tests that failed and did NOT have an "ignore-fails" label
-jq -e -c -f "${ROOT_DIR}/hack/e2e/test-report.jq" "${ROOT_DIR}/tests/e2e/out/report.json" || RC=$?
-
-# The exit code reported depends on the two `jq` filter calls. In case we have
-# FAIL in the Ginkgo, but the `jq` succeeds because the failures are ignorable,
-# we should add some explanation
-set +x
-if [[ $RC == 0 ]]; then
-  if [[ $RC_GINKGO1 != 0 || $RC_GINKGO2 != 0 ]]; then
-    printf "\033[0;32m%s\n" "SUCCESS. All the failures in Ginkgo are labelled 'ignore-fails'."
-    echo
-  fi
 fi
 
 exit $RC
