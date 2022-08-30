@@ -21,6 +21,9 @@ package pool
 import (
 	"database/sql"
 	"fmt"
+
+	// this is needed to correctly open the sql connection with the pgx driver
+	_ "github.com/jackc/pgx/v4/stdlib"
 )
 
 // ConnectionPool is a repository of DB connections, pointing to the same instance
@@ -71,7 +74,7 @@ func (pool *ConnectionPool) ShutdownConnections() {
 func (pool *ConnectionPool) newConnection(dbname string) (*sql.DB, error) {
 	dsn := pool.GetDsn(dbname)
 	db, err := sql.Open(
-		"postgres",
+		"pgx",
 		dsn)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create connection connectionMap: %w", err)

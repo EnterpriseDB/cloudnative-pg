@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/blang/semver"
+	"github.com/jackc/pgconn"
 	"go.uber.org/atomic"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
@@ -42,6 +43,9 @@ import (
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/management/postgres/utils"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/postgres"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/specs"
+
+	// this is needed to correctly open the sql connection with the pgx driver
+	_ "github.com/jackc/pgx/v4/stdlib"
 )
 
 const (
@@ -558,7 +562,7 @@ func (instance *Instance) WaitForPrimaryAvailable() error {
 	log.Info("Waiting for the new primary to be available",
 		"primaryConnInfo", primaryConnInfo)
 
-	db, err := sql.Open("postgres", primaryConnInfo)
+	db, err := sql.Open("pgx", primaryConnInfo)
 	if err != nil {
 		return err
 	}
@@ -636,19 +640,20 @@ func (instance *Instance) WaitForConfigReloaded() error {
 
 // waitForStreamingConnectionAvailable waits until we can connect to the passed
 // sql.DB connection using streaming protocol
-func waitForStreamingConnectionAvailable(db *sql.DB) error {
+func waitForStreamingConnectionAvailable(db *pgconn.PgConn) error {
 	errorIsRetryable := func(err error) bool {
 		return err != nil
 	}
 
 	return retry.OnError(RetryUntilServerAvailable, errorIsRetryable, func() error {
-		result, err := db.Query("IDENTIFY_SYSTEM")
-		if err != nil || result.Err() != nil {
+		reader := db.Exec(context.TODO(), "IDENTIFY_SYSTEM")
+		_, err := reader.ReadAll()
+		if err != nil {
 			log.Info("DB not available, will retry", "err", err)
 			return err
 		}
 		defer func() {
-			innerErr := result.Close()
+			innerErr := reader.Close()
 			if err == nil && innerErr != nil {
 				err = innerErr
 			}

@@ -17,12 +17,17 @@ limitations under the License.
 package postgres
 
 import (
-	"database/sql"
+	"context"
 	"fmt"
 	"os/exec"
 
+	"github.com/jackc/pgconn"
+
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/management/execlog"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/management/log"
+
+	// this is needed to correctly open the sql connection with the pgx driver
+	_ "github.com/jackc/pgx/v4/stdlib"
 )
 
 // ClonePgData clones an existing server, given its connection string,
@@ -36,12 +41,13 @@ func ClonePgData(connectionString, targetPgData, walDir string) error {
 	connectionString += " replication=1"
 
 	log.Info("Waiting for server to be available", "connectionString", connectionString)
-	db, err := sql.Open("postgres", connectionString)
+
+	db, err := pgconn.Connect(context.TODO(), connectionString)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		_ = db.Close()
+		_ = db.Close(context.TODO())
 	}()
 
 	err = waitForStreamingConnectionAvailable(db)
