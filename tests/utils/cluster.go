@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	apiv1 "github.com/cloudnative-pg/cloudnative-pg/api/v1"
+	"github.com/cloudnative-pg/cloudnative-pg/internal/cmd/plugin"
 )
 
 // AllClusterPodsHaveLabels verifies if the labels defined in a map are included
@@ -225,6 +226,22 @@ func (env TestingEnvironment) GetClusterPodList(namespace string, clusterName st
 		client.MatchingLabels{"postgresql": clusterName},
 	)
 	return podList, err
+}
+
+// GetPVC get PVC from the given name
+func (env TestingEnvironment) GetPVC(namespace string, pvcName string) (*corev1.PersistentVolumeClaim, error) {
+	var pvc corev1.PersistentVolumeClaim
+	if err := plugin.Client.Get(
+		env.Ctx,
+		types.NamespacedName{
+			Name:      pvcName,
+			Namespace: namespace,
+		},
+		&pvc,
+	); err != nil {
+		return nil, err
+	}
+	return &pvc, nil
 }
 
 // GetClusterPrimary gets the primary pod of a cluster
