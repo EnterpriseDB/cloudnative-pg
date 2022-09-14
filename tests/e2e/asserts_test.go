@@ -224,11 +224,57 @@ func AssertClusterIsReady(namespace string, clusterName string, timeout int, env
 				err = env.Client.Get(env.Ctx, namespacedName, cluster)
 				return cluster.Status.Phase, err
 			}
-			return fmt.Sprintf("spec Instances: %d, ready pods: %d",
-				cluster.Spec.Instances,
-				utils.CountReadyPods(podList.Items)), nil
+			return clusterInfoDumpAsString(cluster), nil
 		}, timeout, 2).Should(BeEquivalentTo(apiv1.PhaseHealthy))
 	})
+}
+
+// clusterInfoDumpAsString dump the cluster information as string
+func clusterInfoDumpAsString(cluster *apiv1.Cluster) string {
+	var clusterDump string
+	clusterDump += "Cluster information: \n\n"
+	clusterDump += fmt.Sprintf("Cluster phase: %s, number of instance: %d, number of pvc: %d \n"+
+		"Cluster target primary: %s, cluster current primary: %s \n",
+		cluster.Status.Phase,
+		cluster.Spec.Instances,
+		cluster.Status.PVCCount,
+		cluster.Status.TargetPrimary,
+		cluster.Status.CurrentPrimary)
+
+	clusterDump += "Cluster instancesReportedState: \n\n"
+
+	clusterDump += "Instance information: \n\n"
+	podList, _ := env.GetClusterPodList(cluster.GetNamespace(), cluster.GetName())
+	clusterDump += fmt.Sprintf("Number of ready Instances: %d \n", utils.CountReadyPods(podList.Items))
+	for _, pod := range podList.Items {
+		clusterDump += fmt.Sprintf("Instance name: %s, instance phase: %s \n", pod.Name, pod.Status.Phase)
+		if cluster.Status.InstancesReportedState != nil {
+			if instanceReportState, ok := cluster.Status.InstancesReportedState[apiv1.PodName(pod.Name)]; ok {
+				clusterDump += fmt.Sprintf("Is Primary: %v, timeLineID: %d \n",
+					instanceReportState.IsPrimary, instanceReportState.TimeLineID)
+			} else {
+				clusterDump += "InstanceReportState not exit \n"
+			}
+		}
+		pvcName := pod.Name
+		pvc, _ := env.GetPVC(cluster.Namespace, pvcName)
+		if pvc != nil {
+			clusterDump += fmt.Sprintf("Pvc name: %s, pvc phase: %s \n", pvcName, pvc.Status.Phase)
+		} else {
+			clusterDump += fmt.Sprintf("Pvc name: %s, pvc not exist \n", pvcName)
+		}
+
+		if cluster.ShouldCreateWalArchiveVolume() {
+			pvcName += cluster.GetWalArchiveVolumeSuffix()
+			pvc, _ := env.GetPVC(cluster.Namespace, pvcName)
+			if pvc != nil {
+				clusterDump += fmt.Sprintf("Wal storage pvc name: %s, phase: %s \n", pvcName, pvc.Status.Phase)
+			} else {
+				clusterDump += fmt.Sprintf("Wal storage pvc name: %s, pvc not exist \n", pvcName)
+			}
+		}
+	}
+	return clusterDump
 }
 
 func AssertClusterDefault(namespace string, clusterName string,
