@@ -40,7 +40,7 @@ func RunQueryFromPod(
 	query string,
 	env *TestingEnvironment,
 ) (string, string, error) {
-	timeout := time.Second * 2
+	timeout := time.Second * 3
 	dsn := fmt.Sprintf("host=%v user=%v dbname=%v password=%v sslmode=require",
 		host, user, dbname, password)
 
