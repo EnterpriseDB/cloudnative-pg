@@ -81,17 +81,17 @@ jobs:
   duplicate_runs:
     runs-on: ubuntu-20.04
     name: Skip duplicate runs
+    # This tricky check is to make sure this workflow will not run:
+    #   1. When it is triggered by `pull_request` event and the pull request is from forked repository
+    #  or
+    #   2. When it is triggred by `pull_request_target` event and the pull request is from this source repository.
+    if: |
+      github.event_name == 'pull_request' && env.FORK_REPO_PR == 'true' ||
+      github.event_name == 'pull_request_target' && env.FORK_REPO_PR == 'false'
     continue-on-error: true
     outputs:
-      # This tricky check is to make sure this workflow will not run:
-      #   1. When it is triggered by `pull_request` event and the pull request is from forked repository
-      #  or
-      #   2. When it is triggred by `pull_request_target` event and the pull request is from this source repository.
       should_skip: |
-        ${{ steps.skip_check.outputs.should_skip == 'true' && github.ref != 'refs/heads/main' ||
-          github.event_name == 'pull_request' && env.FORK_REPO_PR == 'true' ||
-          github.event_name == 'pull_request_target' && env.FORK_REPO_PR == 'false'
-        }}
+        ${{ steps.skip_check.outputs.should_skip == 'true' && github.ref != 'refs/heads/main' }}
     steps:
     - id: skip_check
       uses: fkirc/skip-duplicate-actions@v5.2.0
