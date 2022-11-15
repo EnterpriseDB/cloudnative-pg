@@ -86,8 +86,8 @@ jobs:
     #  or
     #   2. When it is triggred by `pull_request_target` event and the pull request is from this source repository.
     if: |
-      github.event_name == 'pull_request' && env.FORK_REPO_PR == 'true' ||
-      github.event_name == 'pull_request_target' && env.FORK_REPO_PR == 'false'
+      ${{ github.event_name == 'pull_request' && env.FORK_REPO_PR == 'true' ||
+      github.event_name == 'pull_request_target' && env.FORK_REPO_PR == 'false' }}
     continue-on-error: true
     outputs:
       should_skip: |
