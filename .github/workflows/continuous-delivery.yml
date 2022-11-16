@@ -69,6 +69,7 @@ env:
 
 
 
+
 defaults:
   run:
     # default failure handling for shell scripts in 'run' steps
@@ -88,7 +89,8 @@ jobs:
       should_skip:  ${{ steps.fork_check.outputs.should_skip == 'true' ||
          steps.skip_check.outputs.should_skip == 'true' && github.ref != 'refs/heads/main' }}
     steps:
-    - id: fork_check
+    - name: fork repository check
+      id: fork_check
       run: |
         # This tricky check is to make sure this workflow will not run:
         #   1. When it is triggered by `pull_request` event and the pull request is from forked repository
