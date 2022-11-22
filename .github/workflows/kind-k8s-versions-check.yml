@@ -2,6 +2,7 @@
 # and if there is a new one, updates the kind_versions.json
 name: kind-k8s-versions-check
 on:
+  push:
   schedule:
     - cron: "30 0 * * *"
   workflow_dispatch:
