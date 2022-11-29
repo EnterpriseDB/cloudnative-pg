@@ -52,7 +52,8 @@ jobs:
           contains(github.event.pull_request.labels.*.name, 'backport-requested') ||
           contains(github.event.pull_request.labels.*.name, 'backport-requested :arrow_backward:')
         ) &&
-        !contains(github.event.pull_request.labels.*.name, 'do not backport')
+        !contains(github.event.pull_request.labels.*.name, 'do not backport') &&
+        contains( github.event.pull_request.labels.*.name, matrix.branch )
     runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
