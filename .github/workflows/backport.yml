@@ -138,5 +138,7 @@ jobs:
             2. If yes, `cherry-pick` the commit manually and push to the release branch. You may need to resolve the
             conflict and issue `cherry-pick --continue` again. Also it is possible that dependent commit missing cause
             the failure, you may need cherry-pick the dependent commit first.
+            
+            3. nothing but testing ...
 
 
