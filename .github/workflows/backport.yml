@@ -59,7 +59,12 @@ jobs:
       matrix:
         branch: [ release-1.16, release-1.17, release-1.18 ]
         include:
-          - if: contains( github.event.pull_request.labels.*.name, matrix.branch )
+          - if: contains( github.event.pull_request.labels.*.name, 'release-1.16' )
+            branch: release-1.16
+          - if: contains( github.event.pull_request.labels.*.name, 'release-1.17' )
+            branch: release-1.17
+          - if: contains( github.event.pull_request.labels.*.name, 'release-1.18' )
+            branch: release-1.18
     env:
       PR: ${{ github.event.pull_request.number }}
     outputs:
