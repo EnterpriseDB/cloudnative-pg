@@ -57,14 +57,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        branch: [ release-1.16, release-1.17, release-1.18 ]
-        include:
-          - if: contains( github.event.pull_request.labels.*.name, 'release-1.16' )
-            branch: release-1.16
-          - if: contains( github.event.pull_request.labels.*.name, 'release-1.17' )
-            branch: release-1.17
-          - if: contains( github.event.pull_request.labels.*.name, 'release-1.18' )
-            branch: release-1.18
+        branch:
+          -  release-1.16
+          -  release-1.17
+          -  release-1.18
     env:
       PR: ${{ github.event.pull_request.number }}
     outputs:
@@ -72,6 +68,7 @@ jobs:
     steps:
       -
         name: Checkout code
+        if: contains( github.event.pull_request.labels.*.name, matrix.branch )
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
@@ -80,7 +77,6 @@ jobs:
       -
         name: Check commits
         id: check_commits
-        if: success()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -141,9 +137,5 @@ jobs:
             2. If yes, `cherry-pick` the commit manually and push to the release branch. You may need to resolve the
             conflict and issue `cherry-pick --continue` again. Also it is possible that dependent commit missing cause
             the failure, you may need cherry-pick the dependent commit first.
-            
-            3. test...
-            4. test...
-            5. test...
 
 
