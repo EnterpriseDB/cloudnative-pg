@@ -58,10 +58,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        branch:
-          -  release-1.16
-          -  release-1.17
-          -  release-1.18
+        branch: [ release-1.16, release-1.17, release-1.18 ]
+        include:
+          - if: contains( github.event.pull_request.labels.*.name, matrix.branch )
     env:
       PR: ${{ github.event.pull_request.number }}
     outputs:
