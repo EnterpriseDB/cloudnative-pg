@@ -61,6 +61,9 @@ jobs:
           -  release-1.16
           -  release-1.17
           -  release-1.18
+        exclude: 
+          - if: ! contains( github.event.pull_request.labels.*.name, matrix.branch )
+
     env:
       PR: ${{ github.event.pull_request.number }}
     outputs:
@@ -68,7 +71,6 @@ jobs:
     steps:
       -
         name: Checkout code
-        if: contains( github.event.pull_request.labels.*.name, matrix.branch )
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
