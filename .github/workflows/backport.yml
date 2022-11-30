@@ -74,7 +74,7 @@ jobs:
           token: ${{ secrets.REPO_GHA_PAT }}
       -
         name: Check commits
-        if: success()
+        if: contains(github.event.pull_request.labels.*.name, matrix.branch)
         id: check_commits
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -96,7 +96,7 @@ jobs:
         env:
           COMMIT: ${{ steps.check_commits.outputs.commit }}
         if: |
-          success() && env.COMMIT != ''
+          contains(github.event.pull_request.labels.*.name, matrix.branch) && env.COMMIT != ''
         run: |
           git config user.email "${{ env.AUTHOR_EMAIL }}"
           git config user.name "${{ env.AUTHOR_NAME }}"
