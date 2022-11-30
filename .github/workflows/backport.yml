@@ -57,10 +57,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: 
-          - if: contains(github.event.pull_request.labels.*.name,'release-1.16')
-          - if: contains(github.event.pull_request.labels.*.name,'release-1.17')
-          - if: contains(github.event.pull_request.labels.*.name,'release-1.18')
+        branch: [release-1.16, release-1.17, release-1.18]
           
     env:
       PR: ${{ github.event.pull_request.number }}
@@ -69,6 +66,7 @@ jobs:
     steps:
       -
         name: Checkout code
+        if: contains(github.event.pull_request.labels.*.name, matrix.branch)
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
@@ -76,6 +74,7 @@ jobs:
           token: ${{ secrets.REPO_GHA_PAT }}
       -
         name: Check commits
+        if: success()
         id: check_commits
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -97,7 +96,7 @@ jobs:
         env:
           COMMIT: ${{ steps.check_commits.outputs.commit }}
         if: |
-          env.COMMIT != ''
+          success() && env.COMMIT != ''
         run: |
           git config user.email "${{ env.AUTHOR_EMAIL }}"
           git config user.name "${{ env.AUTHOR_NAME }}"
