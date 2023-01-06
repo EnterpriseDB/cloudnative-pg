@@ -127,7 +127,7 @@ instancesLoop:
 
 		// If we have less PVCs that the expected number, all the instance PVCs are unusable
 		if len(expectedPVCs) > len(pvcNames) {
-			result.unusable = append(result.unusable, pvcNames...)
+			result.unusable = append(result.unusable, expectedPVCs...)
 			continue instancesLoop
 		}
 
@@ -196,7 +196,7 @@ instancesLoop:
 		if isAnyPvcUnusable {
 			// This PVC has not a Job nor a Pod using it, but it is not marked as StatusReady
 			// we need to ignore this instance and treat all the instance PVCs as unusable
-			result.unusable = append(result.unusable, pvcNames...)
+			//result.unusable = append(result.unusable, pvcNames...)
 			contextLogger.Warning("found PVC that is not annotated as ready",
 				"pvcNames", pvcNames,
 				"instance", instanceName,
@@ -209,6 +209,8 @@ instancesLoop:
 		// These PVCs have not a Job nor a Pod using them, they are dangling
 		result.dangling = append(result.dangling, pvcNames...)
 	}
+
+	log.Info("pvc statuses", "healthy", result.healthy, "dangling", result.dangling, "initializing", result.initializing, "resizing", result.resizing, "unusable", result.unusable)
 
 	cluster.Status.PVCCount = int32(len(pvcs))
 	cluster.Status.InstanceNames = result.instanceNames
