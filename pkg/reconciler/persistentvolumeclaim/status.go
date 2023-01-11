@@ -72,6 +72,8 @@ type status struct {
 
 	// List of PVCs that are unusable (they are part of an incomplete group)
 	unusable []string
+
+	needAttach []string
 }
 
 // EnrichStatus obtains and classifies the current status of each managed PVC
@@ -79,7 +81,7 @@ type status struct {
 func EnrichStatus(
 	ctx context.Context,
 	cluster *apiv1.Cluster,
-	podList []corev1.Pod,
+	instances []corev1.Pod,
 	jobList []batchv1.Job,
 	pvcs []corev1.PersistentVolumeClaim,
 ) {
@@ -89,7 +91,7 @@ func EnrichStatus(
 
 	// First we iterate over all the PVCs building the instances map.
 	// It contains the PVCSs grouped by instance serial
-	instances := make(map[int][]corev1.PersistentVolumeClaim)
+	instancePvcs := make(map[int][]corev1.PersistentVolumeClaim)
 	for _, pvc := range pvcs {
 		// Ignore PVCs that is in the wrong state
 		if pvc.Status.Phase != corev1.ClaimPending &&
@@ -108,7 +110,7 @@ func EnrichStatus(
 		if err != nil {
 			continue
 		}
-		instances[serial] = append(instances[serial], pvc)
+		instancePvcs[serial] = append(instancePvcs[serial], pvc)
 
 		// Given that we are iterating over the PVCs
 		// we take the chance to build the list of resizing PVCs
@@ -120,46 +122,46 @@ func EnrichStatus(
 	// For every instance we have we validate the list of PVCs
 	// and detect if there is an attached Pod or Job
 instancesLoop:
-	for serial, pvcs := range instances {
+	for serial, instancePVCs := range instancePvcs {
 		instanceName := fmt.Sprintf("%s-%v", cluster.Name, serial)
-		expectedPVCs := getExpectedInstancePVCNames(cluster, instanceName)
-		pvcNames := getNamesFromPVCList(pvcs)
+		expectedPVCNames := getExpectedInstancePVCNames(cluster, instanceName)
+		instancePVCNames := getNamesFromPVCList(instancePVCs)
 
 		// If we have less PVCs that the expected number, all the instance PVCs are unusable
-		if len(expectedPVCs) > len(pvcNames) {
-			result.unusable = append(result.unusable, pvcNames...)
+		if len(expectedPVCNames) > len(instancePVCNames) {
+			result.unusable = append(result.unusable, instancePVCNames...)
 			continue instancesLoop
 		}
 
 		// If some PVC is missing, all the instance PVCs are unusable
-		for _, expectedPVC := range expectedPVCs {
-			if !slices.Contains(pvcNames, expectedPVC) {
-				result.unusable = append(result.unusable, pvcNames...)
+		for _, expectedPVC := range expectedPVCNames {
+			if !slices.Contains(instancePVCNames, expectedPVC) {
+				result.unusable = append(result.unusable, instancePVCNames...)
 				continue instancesLoop
 			}
 		}
 
 		// If we have PVCs that we don't expect, these PVCs need to
 		// be classified as unusable
-		for _, pvcName := range pvcNames {
-			if !slices.Contains(expectedPVCs, pvcName) {
+		for _, pvcName := range instancePVCNames {
+			if !slices.Contains(expectedPVCNames, pvcName) {
 				result.unusable = append(result.unusable, pvcName)
 				contextLogger.Warning("found more PVC than those expected",
 					"instance", instanceName,
-					"expectedPVCs", expectedPVCs,
-					"foundPVCs", pvcNames,
+					"expectedPVCs", expectedPVCNames,
+					"foundPVCs", instancePVCNames,
 				)
 			}
 		}
 
 		// From this point we only consider expected PVCs.
 		// Any extra PVC is already in the Unusable list
-		pvcNames = expectedPVCs
+		instancePVCNames = expectedPVCNames
 
 		isAnyPvcUnusable := false
-		for _, pvc := range pvcs {
+		for _, pvc := range instancePVCs {
 			// We ignore any PVC that is not expected
-			if !slices.Contains(expectedPVCs, pvc.Name) {
+			if !slices.Contains(expectedPVCNames, pvc.Name) {
 				continue
 			}
 
@@ -173,11 +175,11 @@ instancesLoop:
 		}
 		// Search for a Pod corresponding to this instance.
 		// If found, all the PVCs are Healthy
-		for idx := range podList {
-			if IsUsedByPodSpec(podList[idx].Spec, pvcNames...) {
+		for idx := range instances {
+			if IsUsedByPodSpec(instances[idx].Spec, instancePVCNames...) {
 				// We found a Pod using this PVCs so this
 				// PVCs are not dangling
-				result.healthy = append(result.healthy, pvcNames...)
+				result.healthy = append(result.healthy, instancePVCNames...)
 				continue instancesLoop
 			}
 		}
@@ -185,10 +187,10 @@ instancesLoop:
 		// Search for a Job corresponding to this instance.
 		// If found, all the PVCs are initializing
 		for idx := range jobList {
-			if IsUsedByPodSpec(jobList[idx].Spec.Template.Spec, pvcNames...) {
+			if IsUsedByPodSpec(jobList[idx].Spec.Template.Spec, instancePVCNames...) {
 				// We have found a Job corresponding to this PVCs, so we
 				// are initializing them or the initialization has just completed
-				result.initializing = append(result.initializing, pvcNames...)
+				result.initializing = append(result.initializing, instancePVCNames...)
 				continue instancesLoop
 			}
 		}
@@ -196,18 +198,23 @@ instancesLoop:
 		if isAnyPvcUnusable {
 			// This PVC has not a Job nor a Pod using it, but it is not marked as StatusReady
 			// we need to ignore this instance and treat all the instance PVCs as unusable
-			result.unusable = append(result.unusable, pvcNames...)
+			result.unusable = append(result.unusable, instancePVCNames...)
 			contextLogger.Warning("found PVC that is not annotated as ready",
-				"pvcNames", pvcNames,
+				"pvcNames", instancePVCNames,
 				"instance", instanceName,
-				"expectedPVCs", expectedPVCs,
-				"foundPVCs", pvcNames,
+				"expectedPVCs", expectedPVCNames,
+				"foundPVCs", instancePVCNames,
 			)
 			continue instancesLoop
 		}
 
+		if slices.Equal(instancePVCNames, expectedPVCNames) {
+			result.needAttach = append(result.needAttach, instancePVCNames...)
+			continue instancesLoop
+		}
+
 		// These PVCs have not a Job nor a Pod using them, they are dangling
-		result.dangling = append(result.dangling, pvcNames...)
+		result.dangling = append(result.dangling, instancePVCNames...)
 	}
 
 	cluster.Status.PVCCount = int32(len(pvcs))
@@ -217,4 +224,5 @@ instancesLoop:
 	cluster.Status.InitializingPVC = result.initializing
 	cluster.Status.ResizingPVC = result.resizing
 	cluster.Status.UnusablePVC = result.unusable
+	cluster.Status.NeedsAttachPVC = result.needAttach
 }
