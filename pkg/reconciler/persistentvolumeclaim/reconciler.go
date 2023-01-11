@@ -19,9 +19,11 @@ package persistentvolumeclaim
 import (
 	"context"
 	"fmt"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -33,9 +35,8 @@ import (
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/utils"
 )
 
-// ReconcileExistingResources reconciles the PVC already created
-// TODO: in future it should also create the PVCs
-func ReconcileExistingResources(
+// Reconcile reconciles the PVC already created
+func Reconcile(
 	ctx context.Context,
 	c client.Client,
 	cluster *apiv1.Cluster,
@@ -56,6 +57,10 @@ func ReconcileExistingResources(
 		return ctrl.Result{}, fmt.Errorf("cannot update annotations on pvcs: %w", err)
 	}
 
+	if res, err := reconcileMissingPVCs(ctx, c, cluster, instances, pvcs); !res.IsZero() || err != nil {
+		return res, err
+	}
+
 	if err := reconcileResourceRequests(ctx, c, cluster, pvcs); err != nil {
 		if apierrs.IsConflict(err) {
 			contextLogger.Debug("Conflict error while reconciling PVCs", "error", err)
@@ -66,6 +71,79 @@ func ReconcileExistingResources(
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func reconcileMissingPVCs(
+	ctx context.Context,
+	c client.Client,
+	cluster *apiv1.Cluster,
+	instances []corev1.Pod,
+	pvcs []corev1.PersistentVolumeClaim,
+) (ctrl.Result, error) {
+	var shouldReconcile bool
+	for idx := range instances {
+		instance := instances[idx]
+
+		missingPVCConfs, err := getMissingPVCsConfigs(cluster, &instance, pvcs)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+
+		for idx := range missingPVCConfs {
+			missingPVCConf := &missingPVCConfs[idx]
+			if err := create(
+				ctx,
+				c,
+				cluster,
+				missingPVCConf,
+			); err != nil {
+				return ctrl.Result{}, err
+			}
+			shouldReconcile = true
+		}
+	}
+	if shouldReconcile {
+		return ctrl.Result{RequeueAfter: time.Second}, nil
+	}
+
+	return ctrl.Result{}, nil
+}
+
+func getMissingPVCsConfigs(
+	cluster *apiv1.Cluster,
+	instance *corev1.Pod,
+	pvcs []corev1.PersistentVolumeClaim,
+) ([]CreateConfiguration, error) {
+	var missingPVCs []CreateConfiguration // nolint: prealloc
+
+	serial, err := specs.GetNodeSerial(instance.ObjectMeta)
+	if err != nil {
+		return nil, err
+	}
+
+	missingMounts := getInstanceMissingMounts(cluster, instance)
+	for _, missingMount := range missingMounts {
+		// we already have the pvc tracked, it doesn't need to be created. Probably the POD is missing the recreation.
+		if contains(pvcs, missingMount.name) {
+			continue
+		}
+
+		conf, err := getStorageConfiguration(missingMount.role, cluster)
+		if err != nil {
+			return nil, err
+		}
+
+		missingPVCs = append(missingPVCs,
+			CreateConfiguration{
+				Status:     missingMount.expectedStatus,
+				NodeSerial: serial,
+				Role:       missingMount.role,
+				Storage:    conf,
+			},
+		)
+	}
+
+	return missingPVCs, nil
 }
 
 // reconcileResourceRequests align the resource requests
@@ -88,20 +166,6 @@ func reconcileResourceRequests(
 	return nil
 }
 
-func getStorageConfiguration(
-	role utils.PVCRole,
-	cluster *apiv1.Cluster,
-) (*apiv1.StorageConfiguration, error) {
-	switch role {
-	case utils.PVCRolePgData:
-		return &cluster.Spec.StorageConfiguration, nil
-	case utils.PVCRolePgWal:
-		return cluster.Spec.WalStorage, nil
-	default:
-		return nil, fmt.Errorf("unknown pvcRole: %s", string(role))
-	}
-}
-
 func reconcilePVCQuantity(
 	ctx context.Context,
 	c client.Client,
@@ -121,23 +185,22 @@ func reconcilePVCQuantity(
 		return err
 	}
 
-	if storageConfiguration == nil {
-		return fmt.Errorf("tried to reconcile a PVC without storageConfiguration")
+	if storageConfiguration.Size == "" {
+		return nil
 	}
 
-	newSize := storageConfiguration.GetSizeOrNil()
-	if newSize == nil {
+	parsedSize, err := resource.ParseQuantity(storageConfiguration.Size)
+	if err != nil {
 		return ErrorInvalidSize
 	}
-
 	currentSize := pvc.Spec.Resources.Requests["storage"]
 
-	switch currentSize.AsDec().Cmp(newSize.AsDec()) {
+	switch currentSize.AsDec().Cmp(parsedSize.AsDec()) {
 	case 0:
 		return nil
 	case 1:
 		contextLogger.Warning("cannot decrease storage requirement",
-			"from", currentSize, "to", newSize,
+			"from", currentSize, "to", parsedSize,
 			"pvcName", pvc.Name)
 		return nil
 	}
@@ -145,14 +208,16 @@ func reconcilePVCQuantity(
 	oldPVC := pvc.DeepCopy()
 	// right now we reconcile the metadata in a different set of functions, so it's not needed to do it here
 	pvc = resources.NewPersistentVolumeClaimBuilderFromPVC(pvc).
-		WithRequests(corev1.ResourceList{"storage": *newSize}).
+		WithRequests(corev1.ResourceList{"storage": parsedSize}).
 		Build()
 
 	if err := c.Patch(ctx, pvc, client.MergeFrom(oldPVC)); err != nil {
 		contextLogger.Error(err, "error while changing PVC storage requirement",
 			"pvcName", pvc.Name,
-			"requests", pvc.Spec.Resources.Requests,
-			"oldRequests", oldPVC.Spec.Resources.Requests)
+			"pvc", pvc,
+			"spec", pvc.Spec,
+			"oldPVC", oldPVC,
+			"oldSPEC", oldPVC.Spec)
 		return err
 	}
 

@@ -112,9 +112,6 @@ const (
 
 	// PGBouncerPoolerUserName is the name of the role to be used for
 	PGBouncerPoolerUserName = "cnpg_pooler_pgbouncer"
-
-	// NewWalReason is the reason that is set when we do a rolling upgrade to add WAL volumes to a cluster
-	NewWalReason = "the instance has unattached WAL volumes"
 )
 
 // ClusterSpec defines the desired state of Cluster
@@ -552,6 +549,9 @@ const (
 
 	// ClusterIsNotReady means that the condition changed because the cluster is not ready
 	ClusterIsNotReady ConditionReason = "ClusterIsNotReady"
+
+	// MissingPVC is the reason that is set when we do a rolling upgrade to add a PVC volume to a cluster
+	MissingPVC ConditionReason = "the instance has unattached PVC volumes"
 )
 
 // EmbeddedObjectMetadata contains metadata to be inherited by all resources related to a Cluster

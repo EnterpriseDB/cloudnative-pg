@@ -870,6 +870,7 @@ func (r *ClusterReconciler) generateNodeSerial(ctx context.Context, cluster *api
 	return cluster.Status.LatestGeneratedNode, nil
 }
 
+// nolint: gocognit
 func (r *ClusterReconciler) createPrimaryInstance(
 	ctx context.Context,
 	cluster *apiv1.Cluster,
@@ -902,8 +903,9 @@ func (r *ClusterReconciler) createPrimaryInstance(
 		return ctrl.Result{}, fmt.Errorf("cannot generate node serial: %w", err)
 	}
 
-	if err := r.createPVC(
+	if err := persistentvolumeclaim.Create(
 		ctx,
+		r.Client,
 		cluster,
 		&persistentvolumeclaim.CreateConfiguration{
 			Status:     persistentvolumeclaim.StatusInitializing,
@@ -916,8 +918,9 @@ func (r *ClusterReconciler) createPrimaryInstance(
 	}
 
 	if cluster.ShouldCreateWalArchiveVolume() {
-		if err := r.createPVC(
+		if err := persistentvolumeclaim.Create(
 			ctx,
+			r.Client,
 			cluster,
 			&persistentvolumeclaim.CreateConfiguration{
 				Status:     persistentvolumeclaim.StatusInitializing,
@@ -1085,8 +1088,9 @@ func (r *ClusterReconciler) joinReplicaInstance(
 		return ctrl.Result{}, err
 	}
 
-	if err := r.createPVC(
+	if err := persistentvolumeclaim.Create(
 		ctx,
+		r.Client,
 		cluster,
 		&persistentvolumeclaim.CreateConfiguration{
 			Status:     persistentvolumeclaim.StatusInitializing,
@@ -1099,8 +1103,9 @@ func (r *ClusterReconciler) joinReplicaInstance(
 	}
 
 	if cluster.ShouldCreateWalArchiveVolume() {
-		if err := r.createPVC(
+		if err := persistentvolumeclaim.Create(
 			ctx,
+			r.Client,
 			cluster,
 			&persistentvolumeclaim.CreateConfiguration{
 				Status:     persistentvolumeclaim.StatusInitializing,
@@ -1269,42 +1274,6 @@ func (r *ClusterReconciler) removeDanglingPVCs(ctx context.Context, cluster *api
 			}
 			return fmt.Errorf("removing unneeded PVC %v: %v", pvc.Name, err)
 		}
-	}
-
-	return nil
-}
-
-func (r *ClusterReconciler) createPVC(
-	ctx context.Context,
-	cluster *apiv1.Cluster,
-	configuration *persistentvolumeclaim.CreateConfiguration,
-) error {
-	contextLogger := log.FromContext(ctx)
-
-	pvc, err := persistentvolumeclaim.Build(cluster, configuration)
-	if err != nil {
-		if err == persistentvolumeclaim.ErrorInvalidSize {
-			// This error should have been caught by the validating
-			// webhook, but since we are here the user must have disabled server-side
-			// validation, and we must react.
-			contextLogger.Info("The size specified for the cluster is not valid",
-				"size",
-				configuration.Storage.Size)
-			return ErrNextLoop
-		}
-		return fmt.Errorf(
-			"unable to create a PVC spec for node with serial %v: %w",
-			configuration.NodeSerial,
-			err,
-		)
-	}
-
-	if err = r.Create(ctx, pvc); err != nil && !apierrs.IsAlreadyExists(err) {
-		return fmt.Errorf("unable to create a PVC: %s for this node (nodeSerial: %d): %w",
-			pvc.Name,
-			configuration.NodeSerial,
-			err,
-		)
 	}
 
 	return nil

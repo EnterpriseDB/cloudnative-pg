@@ -100,9 +100,8 @@ func NewClusterReconciler(mgr manager.Manager, discoveryClient *discovery.Discov
 	}
 }
 
-// ErrNextLoop is not a real error. It forces the current reconciliation loop to stop
-// and return the associated Result object
-var ErrNextLoop = errors.New("stop this loop and return the associated Result object")
+// ErrNextLoop see utils.ErrNextLoop
+var ErrNextLoop = utils.ErrNextLoop
 
 // Alphabetical order to not repeat or miss permissions
 // +kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=mutatingwebhookconfigurations,verbs=get;update;list;patch
@@ -467,7 +466,7 @@ func (r *ClusterReconciler) reconcileResources(
 		return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
 	}
 
-	if res, err := persistentvolumeclaim.ReconcileExistingResources(
+	if res, err := persistentvolumeclaim.Reconcile(
 		ctx,
 		r.Client,
 		cluster,

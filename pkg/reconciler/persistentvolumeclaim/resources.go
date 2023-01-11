@@ -17,6 +17,8 @@ limitations under the License.
 package persistentvolumeclaim
 
 import (
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/strings/slices"
 
@@ -103,4 +105,79 @@ func getNamesFromPVCList(pvcs []corev1.PersistentVolumeClaim) []string {
 		pvcNames[i] = pvc.Name
 	}
 	return pvcNames
+}
+
+func contains(pvcs []corev1.PersistentVolumeClaim, name string) bool {
+	for _, pvc := range pvcs {
+		if pvc.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+// InstanceHasMissingMounts returns true if the instance has expected PVCs that are not mounted
+func InstanceHasMissingMounts(cluster *apiv1.Cluster, instance *corev1.Pod) bool {
+	return len(getInstanceMissingMounts(cluster, instance)) > 0
+}
+
+type missingMount struct {
+	role           utils.PVCRole
+	name           string
+	expectedStatus PVCStatus
+}
+
+// here we should register any new PVC for the instance
+func getInstanceMissingMounts(cluster *apiv1.Cluster, instance *corev1.Pod) []missingMount {
+	var missingMounts []missingMount
+
+	// At the moment detecting a pod is missing the data pvc has no real use.
+	// In the future we will handle all the PVC creation with the package reconciler
+	dataPVCName := GetName(cluster, instance.Name, utils.PVCRolePgData)
+	if !IsUsedByPodSpec(instance.Spec, dataPVCName) {
+		missingMounts = append(missingMounts,
+			missingMount{
+				name: dataPVCName,
+				role: utils.PVCRolePgData,
+				// This requires a init, ideally we should move to a design where each pvc can be init separately
+				// and then  attached
+				expectedStatus: StatusInitializing,
+			},
+		)
+	}
+
+	walPVCName := GetName(cluster, instance.Name, utils.PVCRolePgWal)
+	if cluster.ShouldCreateWalArchiveVolume() && !IsUsedByPodSpec(instance.Spec, walPVCName) {
+		missingMounts = append(missingMounts,
+			missingMount{
+				name:           walPVCName,
+				role:           utils.PVCRolePgWal,
+				expectedStatus: StatusReady,
+			},
+		)
+	}
+
+	return missingMounts
+}
+
+func getStorageConfiguration(
+	role utils.PVCRole,
+	cluster *apiv1.Cluster,
+) (apiv1.StorageConfiguration, error) {
+	var storageConfiguration *apiv1.StorageConfiguration
+	switch role {
+	case utils.PVCRolePgData:
+		storageConfiguration = &cluster.Spec.StorageConfiguration
+	case utils.PVCRolePgWal:
+		storageConfiguration = cluster.Spec.WalStorage
+	default:
+		return apiv1.StorageConfiguration{}, fmt.Errorf("unknown pvcRole: %s", string(role))
+	}
+
+	if storageConfiguration == nil {
+		return apiv1.StorageConfiguration{},
+			fmt.Errorf("storage configuration doesn't exist for the given PVC role: %s", role)
+	}
+
+	return *storageConfiguration, nil
 }
