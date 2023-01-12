@@ -19,6 +19,7 @@ package persistentvolumeclaim
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -73,7 +74,7 @@ type status struct {
 	// List of PVCs that are unusable (they are part of an incomplete group)
 	unusable []string
 
-	needAttach []string
+	needsReattach map[string][]string
 }
 
 // EnrichStatus obtains and classifies the current status of each managed PVC
@@ -87,7 +88,7 @@ func EnrichStatus(
 ) {
 	contextLogger := log.FromContext(ctx)
 
-	var result status
+	result := status{needsReattach: map[string][]string{}}
 
 	// First we iterate over all the PVCs building the instances map.
 	// It contains the PVCSs grouped by instance serial
@@ -123,7 +124,7 @@ func EnrichStatus(
 	// and detect if there is an attached Pod or Job
 instancesLoop:
 	for serial, instancePVCs := range instancePvcs {
-		instanceName := fmt.Sprintf("%s-%v", cluster.Name, serial)
+		instanceName := specs.GetInstanceName(cluster.Name, serial)
 		expectedPVCNames := getExpectedInstancePVCNames(cluster, instanceName)
 		instancePVCNames := getNamesFromPVCList(instancePVCs)
 
@@ -165,14 +166,13 @@ instancesLoop:
 				continue
 			}
 
-			if pvc.Annotations[StatusAnnotationName] != StatusReady {
-				isAnyPvcUnusable = true
-			}
+			isAnyPvcUnusable = isAnyPvcUnusable || pvc.Annotations[StatusAnnotationName] != StatusReady
 		}
 
 		if !isAnyPvcUnusable {
 			result.instanceNames = append(result.instanceNames, instanceName)
 		}
+
 		// Search for a Pod corresponding to this instance.
 		// If found, all the PVCs are Healthy
 		for idx := range instances {
@@ -187,7 +187,8 @@ instancesLoop:
 		// Search for a Job corresponding to this instance.
 		// If found, all the PVCs are initializing
 		for idx := range jobList {
-			if IsUsedByPodSpec(jobList[idx].Spec.Template.Spec, instancePVCNames...) {
+			job := jobList[idx]
+			if isAnyPvcUnusable && IsUsedByPodSpec(job.Spec.Template.Spec, instancePVCNames...) {
 				// We have found a Job corresponding to this PVCs, so we
 				// are initializing them or the initialization has just completed
 				result.initializing = append(result.initializing, instancePVCNames...)
@@ -209,7 +210,7 @@ instancesLoop:
 		}
 
 		if slices.Equal(instancePVCNames, expectedPVCNames) {
-			result.needAttach = append(result.needAttach, instancePVCNames...)
+			result.needsReattach[strconv.Itoa(serial)] = instancePVCNames
 			continue instancesLoop
 		}
 
@@ -217,12 +218,13 @@ instancesLoop:
 		result.dangling = append(result.dangling, instancePVCNames...)
 	}
 
-	cluster.Status.PVCCount = int32(len(pvcs))
 	cluster.Status.InstanceNames = result.instanceNames
+
+	cluster.Status.PVCCount = int32(len(pvcs))
 	cluster.Status.DanglingPVC = result.dangling
 	cluster.Status.HealthyPVC = result.healthy
 	cluster.Status.InitializingPVC = result.initializing
 	cluster.Status.ResizingPVC = result.resizing
 	cluster.Status.UnusablePVC = result.unusable
-	cluster.Status.NeedsAttachPVC = result.needAttach
+	cluster.Status.InstancesThatNeedPVCReattached = result.needsReattach
 }
