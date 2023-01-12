@@ -28,6 +28,7 @@ import (
 	apiv1 "github.com/cloudnative-pg/cloudnative-pg/api/v1"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/management/log"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/specs"
+	"github.com/cloudnative-pg/cloudnative-pg/pkg/utils"
 )
 
 // PVCStatus describes the PVC phase
@@ -67,6 +68,8 @@ type status struct {
 
 	// List of PVCs that are dangling (they don't have a corresponding Job nor a corresponding Pod)
 	dangling []string
+
+	danglingInstances []string
 
 	// List of PVCs that are used (they have a corresponding Pod)
 	healthy []string
@@ -176,7 +179,19 @@ instancesLoop:
 		// Search for a Pod corresponding to this instance.
 		// If found, all the PVCs are Healthy
 		for idx := range instances {
-			if IsUsedByPodSpec(instances[idx].Spec, instancePVCNames...) {
+			instance := instances[idx]
+			if IsUsedByPodSpec(instance.Spec, instancePVCNames...) {
+				// pod is stuck
+				if instance.Spec.NodeName == "" &&
+					cluster.IsNodeMaintenanceWindowInProgress() &&
+					!cluster.IsReusePVCEnabled() &&
+					utils.IsPodUnschedulable(instance) &&
+					!utils.IsPodReady(instance) {
+					result.danglingInstances = append(result.danglingInstances, instanceName)
+					result.dangling = append(result.dangling, instancePVCNames...)
+					continue instancesLoop
+				}
+
 				// We found a Pod using this PVCs so this
 				// PVCs are not dangling
 				result.healthy = append(result.healthy, instancePVCNames...)
@@ -215,11 +230,13 @@ instancesLoop:
 		}
 
 		// These PVCs have not a Job nor a Pod using them, they are dangling
+		result.danglingInstances = append(result.danglingInstances, instanceName)
 		result.dangling = append(result.dangling, instancePVCNames...)
 	}
 
 	cluster.Status.InstanceNames = result.instanceNames
-
+	// TODO: move into the existing instances status
+	cluster.Status.DanglingInstances = result.danglingInstances
 	cluster.Status.PVCCount = int32(len(pvcs))
 	cluster.Status.DanglingPVC = result.dangling
 	cluster.Status.HealthyPVC = result.healthy
