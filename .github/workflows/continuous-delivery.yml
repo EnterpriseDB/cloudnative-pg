@@ -745,11 +745,11 @@ jobs:
   ok-to-merge:
     name: Label the PR as "ok to merge :ok_hand:"
     needs:
-      - e2e-local
       - evaluate_options
+      - e2e-local
     if: |
-      success() && !cancelled() &&
-      needs.evaluate_options.outputs.test_level == '4'
+      success() && 
+      needs.evaluate_options.outputs.test_level == 4
     runs-on: ubuntu-20.04
     steps:
       - name: Check preconditions
@@ -773,9 +773,10 @@ jobs:
   unlabel-ok-to-merge:
     name: Remove the "ok to merge :ok_hand:" label from the PR
     needs:
-      - e2e-local
       - evaluate_options
+      - e2e-local
     if: |
+      failure() && 
       needs.e2e-local.result == 'failure'
     runs-on: ubuntu-20.04
     steps:
