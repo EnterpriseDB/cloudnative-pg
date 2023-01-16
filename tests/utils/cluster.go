@@ -410,9 +410,9 @@ func (env TestingEnvironment) DescribeKubernetesNodes() (string, error) {
 		if err != nil {
 			return "", err
 		}
-		report.WriteString("================================================\n")
+		report.WriteString("==================================================\n")
 		report.WriteString(stdout)
-		report.WriteString("================================================\n")
+		report.WriteString("==================================================\n")
 	}
 	return report.String(), nil
 }
