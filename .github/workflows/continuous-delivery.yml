@@ -752,11 +752,7 @@ jobs:
       - evaluate_options
       - e2e-local
     if: |
-      always() && !cancelled() &&
-      github.event_name == 'issue_comment' &&
-      github.ref != 'refs/heads/main' &&
-      needs.e2e-local.result == 'success' &&
-      needs.evaluate_options.outputs.test_level == '4'
+      always() && !cancelled()
     runs-on: ubuntu-20.04
     steps:
       - name: Check preconditions
@@ -764,6 +760,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          echo " ${{ github.event_name == 'issue_comment' }}" 
+          echo " ${{ github.ref }}"
+          echo " ${{ needs.e2e-local.result }}"
           ok_label=$(gh pr view --json labels -q ".labels.[].name" 2>/dev/null | grep "ok to merge :ok_hand:" || :)
           echo "OK_LABEL=${ok_label}" >> $GITHUB_ENV
 
