@@ -748,7 +748,9 @@ jobs:
       - evaluate_options
       - e2e-local
     if: |
-      success() && 
+      !failure() && !cancelled() &&
+      github.event_name == 'issue_comment' &&
+      github.ref != 'refs/heads/main' &&
       needs.evaluate_options.outputs.test_level == 4
     runs-on: ubuntu-20.04
     steps:
@@ -777,6 +779,8 @@ jobs:
       - e2e-local
     if: |
       failure() && 
+      github.event_name == 'issue_comment' &&
+      github.ref != 'refs/heads/main' &&
       needs.e2e-local.result == 'failure'
     runs-on: ubuntu-20.04
     steps:
