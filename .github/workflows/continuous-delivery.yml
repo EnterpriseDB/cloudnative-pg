@@ -565,6 +565,10 @@ jobs:
       -
         name: Cleanup docker cache
         run: |
+          echo " ${{ needs.evaluate_options.outputs.test_level }} "
+          echo " test level \n"
+          echo " ${{ needs.evaluate_options.outputs.test_level == 4 }} " 
+          echo " ${{ needs.evaluate_options.outputs.test_level == '4' }} " 
           echo "-------------Disk info before cleanup----------------"
           df -h
           echo "-----------------------------------------------------"
