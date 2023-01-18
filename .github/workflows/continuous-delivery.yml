@@ -747,12 +747,12 @@ jobs:
 # This label is a prerequisite to be able to merge a PR.
 # Also see to 'require-labels.yml'
   ok-to-merge:
-    name: Label the PR as "ok to merge :ok_hand:"
+    name: Handle "ok to merge :ok_hand:" label
     needs:
       - evaluate_options
       - e2e-local
     if: |
-      success() && !cancelled() 
+      always() && !cancelled() 
     runs-on: ubuntu-20.04
     steps:
       - name: Check preconditions
@@ -760,15 +760,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo " ${{ github.event_name == 'issue_comment' }}" 
-          echo " ${{ github.ref != 'refs/heads/main' }}"
+          echo " ${{ github.event_name }}" 
+          echo " ${{ github.ref }}"
           echo " ${{ needs.e2e-local.result }}"
           echo " ${{ needs.evaluate_options.outputs.test_level }}"
           echo " ${{ needs.evaluate_options.outputs.test_level == '4' }}"
           ok_label=$(gh pr view --json labels -q ".labels.[].name" 2>/dev/null | grep "ok to merge :ok_hand:" || :)
           echo "OK_LABEL=${ok_label}" >> $GITHUB_ENV
+          
       - name: Label the PR as "ok to merge :ok_hand:"
         if: |
+          needs.e2e-local.result == 'success' && 
           env.OK_LABEL == '' &&
           needs.evaluate_options.outputs.test_level == '4' &&
           github.ref != 'refs/heads/main' &&
@@ -778,28 +780,10 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           number: ${{ github.event.issue.number }}
           labels: "ok to merge :ok_hand:"
-
-  # Remove the "ok to merge :ok_hand:" label if the E2E tests or previous steps failed
-  unlabel-ok-to-merge:
-    name: Remove the "ok to merge :ok_hand:" label from the PR
-    needs:
-      - evaluate_options
-      - e2e-local
-    if: |
-      failure() && 
-      needs.e2e-local.result == 'failure'
-    runs-on: ubuntu-20.04
-    steps:
-      - name: Check preconditions
-        id: get_pr_number_and_labels
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          ok_label=$(gh pr view --json labels -q ".labels.[].name" 2>/dev/null | grep "ok to merge :ok_hand:" || :)
-          echo "OK_LABEL=${ok_label}" >> $GITHUB_ENV
-
+          
       - name: Remove "ok to merge :ok_hand:" label from PR
         if: |
+          needs.e2e-local.result == 'failure' && 
           env.OK_LABEL != '' &&
           github.ref != 'refs/heads/main' &&
           github.event_name == 'issue_comment'
