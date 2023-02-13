@@ -248,15 +248,14 @@ func (b *BackupCommand) retryWithLatestCluster(
 	cb func(cluster *apiv1.Cluster) error,
 ) error {
 	return retry.OnError(retry.DefaultBackoff, resources.RetryAlways, func() error {
-		var cluster apiv1.Cluster
 		if err := b.Client.Get(ctx, types.NamespacedName{
-			Namespace: b.Cluster.Name,
-			Name:      b.Cluster.Namespace,
-		}, &cluster); err != nil {
+			Namespace: b.Cluster.Namespace,
+			Name:      b.Cluster.Name,
+		}, b.Cluster); err != nil {
 			return err
 		}
 
-		return cb(&cluster)
+		return cb(b.Cluster)
 	})
 }
 
