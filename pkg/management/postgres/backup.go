@@ -253,7 +253,7 @@ func (b *BackupCommand) run(ctx context.Context) {
 		}
 
 		origCluster := b.Cluster.DeepCopy()
-		b.Cluster.Status.LastFailedBackup = utils.GetCurrentTimestamp()
+		b.Cluster.Status.LastFailedBackup = utils.GetCurrentTimestampWithFormat(time.RFC3339)
 		if patchErr := retry.OnError(retry.DefaultBackoff, resources.RetryAlways, func() error {
 			return b.Client.Status().Patch(ctx, b.Cluster, client.MergeFrom(origCluster))
 		}); patchErr != nil {
