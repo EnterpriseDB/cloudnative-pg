@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"reflect"
 	"strconv"
 	"time"
 
@@ -263,15 +264,15 @@ func (b *BackupCommand) retryWithLatestCluster(
 // This method will take long time and is supposed to run inside a dedicated
 // goroutine.
 func (b *BackupCommand) run(ctx context.Context) {
-	var err error
+	var backupErr error
 	defer func() {
-		if err == nil {
+		if backupErr == nil {
 			return
 		}
 		if failErr := b.retryWithLatestCluster(ctx, func(cluster *apiv1.Cluster) error {
-			origCluster := b.Cluster.DeepCopy()
-			b.Cluster.Status.LastFailedBackup = utils.GetCurrentTimestampWithFormat(time.RFC3339)
-			return b.Client.Status().Patch(ctx, b.Cluster, client.MergeFrom(origCluster))
+			origCluster := cluster.DeepCopy()
+			cluster.Status.LastFailedBackup = utils.GetCurrentTimestampWithFormat(time.RFC3339)
+			return b.Client.Status().Patch(ctx, cluster, client.MergeFrom(origCluster))
 		}); failErr != nil {
 			b.Log.Error(failErr, "while setting last failed backup")
 		}
@@ -281,9 +282,9 @@ func (b *BackupCommand) run(ctx context.Context) {
 	backupStatus := b.Backup.GetStatus()
 
 	var options []string
-	options, err = b.getBarmanCloudBackupOptions(barmanConfiguration, backupStatus.ServerName)
-	if err != nil {
-		b.Log.Error(err, "while getting barman-cloud-backup options")
+	options, backupErr = b.getBarmanCloudBackupOptions(barmanConfiguration, backupStatus.ServerName)
+	if backupErr != nil {
+		b.Log.Error(backupErr, "while getting barman-cloud-backup options")
 		return
 	}
 	b.Log.Info("Backup started", "options", options)
@@ -297,25 +298,27 @@ func (b *BackupCommand) run(ctx context.Context) {
 		Reason:  string(apiv1.ConditionBackupStarted),
 		Message: "New Backup starting up",
 	}
-	if err = b.retryWithLatestCluster(ctx, func(cluster *apiv1.Cluster) error {
-		return conditions.Update(ctx, b.Client, b.Cluster, &condition)
+	if err := b.retryWithLatestCluster(ctx, func(cluster *apiv1.Cluster) error {
+		return conditions.Update(ctx, b.Client, cluster, &condition)
 	}); err != nil {
 		b.Log.Error(err, "Error changing backup condition (backup started)")
+		// We do not terminate here because we could still have a good backup
+		// even if we are unable to communicate with the Kubernetes API server
 	}
 
-	if err = fileutils.EnsureDirectoryExists(postgres.BackupTemporaryDirectory); err != nil {
-		b.Log.Error(err, "Cannot create backup temporary directory", "err", err)
+	if backupErr = fileutils.EnsureDirectoryExists(postgres.BackupTemporaryDirectory); backupErr != nil {
+		b.Log.Error(backupErr, "Cannot create backup temporary directory", "err", backupErr)
 		return
 	}
 
 	cmd := exec.Command(barmanCapabilities.BarmanCloudBackup, options...) // #nosec G204
 	cmd.Env = b.Env
 	cmd.Env = append(cmd.Env, "TMPDIR="+postgres.BackupTemporaryDirectory)
-	err = execlog.RunStreaming(cmd, barmanCapabilities.BarmanCloudBackup)
-	if err != nil {
+	backupErr = execlog.RunStreaming(cmd, barmanCapabilities.BarmanCloudBackup)
+	if backupErr != nil {
 		// Set the status to failed and exit
-		b.Log.Error(err, "Backup failed")
-		backupStatus.SetAsFailed(err)
+		b.Log.Error(backupErr, "Backup failed")
+		backupStatus.SetAsFailed(backupErr)
 		b.Recorder.Event(b.Backup, "Normal", "Failed", "Backup failed")
 
 		// Update backup status in cluster conditions on failure
@@ -323,16 +326,17 @@ func (b *BackupCommand) run(ctx context.Context) {
 			Type:    string(apiv1.ConditionBackup),
 			Status:  metav1.ConditionFalse,
 			Reason:  string(apiv1.ConditionReasonLastBackupFailed),
-			Message: err.Error(),
+			Message: backupErr.Error(),
 		}
 
-		if err = b.retryWithLatestCluster(ctx, func(cluster *apiv1.Cluster) error {
-			return conditions.Update(ctx, b.Client, b.Cluster, &condition)
+		if err := b.retryWithLatestCluster(ctx, func(cluster *apiv1.Cluster) error {
+			return conditions.Update(ctx, b.Client, cluster, &condition)
 		}); err != nil {
 			b.Log.Error(err, "Error changing backup condition (backup failed)")
+			// We do not terminate here because we want to update the Backup object too
 		}
 
-		if err = UpdateBackupStatusAndRetry(ctx, b.Client, b.Backup); err != nil {
+		if err := UpdateBackupStatusAndRetry(ctx, b.Client, b.Backup); err != nil {
 			b.Log.Error(err, "Can't mark backup as failed")
 		}
 		return
@@ -350,17 +354,23 @@ func (b *BackupCommand) run(ctx context.Context) {
 		Reason:  string(apiv1.ConditionReasonLastBackupSucceeded),
 		Message: "Backup has successful",
 	}
-	if err = b.retryWithLatestCluster(ctx, func(cluster *apiv1.Cluster) error {
-		return conditions.Update(ctx, b.Client, b.Cluster, &condition)
+	if err := b.retryWithLatestCluster(ctx, func(cluster *apiv1.Cluster) error {
+		return conditions.Update(ctx, b.Client, cluster, &condition)
 	}); err != nil {
 		b.Log.Error(err, "Error changing backup condition (backup succeeded)")
+		// We do not terminate here because we want to continue with
+		// the backup list maintenance
 	}
 
+	b.backupListMaintenance(ctx)
+}
+
+func (b *BackupCommand) backupListMaintenance(ctx context.Context) {
 	// Delete backups per policy
 	if b.Cluster.Spec.Backup.RetentionPolicy != "" {
 		b.Log.Info("Applying backup retention policy",
 			"retentionPolicy", b.Cluster.Spec.Backup.RetentionPolicy)
-		err = barman.DeleteBackupsByPolicy(b.Cluster.Spec.Backup, backupStatus.ServerName, b.Env)
+		err := barman.DeleteBackupsByPolicy(b.Cluster.Spec.Backup, b.Backup.Status.ServerName, b.Env)
 		if err != nil {
 			// Proper logging already happened inside DeleteBackupsByPolicy
 			b.Recorder.Event(b.Cluster, "Warning", "RetentionPolicyFailed", "Retention policy failed")
@@ -368,9 +378,8 @@ func (b *BackupCommand) run(ctx context.Context) {
 		}
 	}
 
-	var backupList *catalog.Catalog
 	// Extracting the latest backup using barman-cloud-backup-list
-	backupList, err = barman.GetBackupList(b.Cluster.Spec.Backup.BarmanObjectStore, backupStatus.ServerName, b.Env)
+	backupList, err := barman.GetBackupList(b.Cluster.Spec.Backup.BarmanObjectStore, b.Backup.Status.ServerName, b.Env)
 	if err != nil {
 		// Proper logging already happened inside GetBackupList
 		return
@@ -398,34 +407,23 @@ func (b *BackupCommand) run(ctx context.Context) {
 	if ts := backupList.FirstRecoverabilityPoint(); ts != nil {
 		firstRecoverabilityPoint := ts.Format(time.RFC3339)
 		if err = b.retryWithLatestCluster(ctx, func(cluster *apiv1.Cluster) error {
-			return b.setClusterFirstRecoverabilityPoint(ctx, firstRecoverabilityPoint)
+			origCluster := cluster.DeepCopy()
+
+			cluster.Status.FirstRecoverabilityPoint = firstRecoverabilityPoint
+			lastBackup := backupList.LatestBackupInfo()
+			if lastBackup != nil {
+				b.Cluster.Status.LastSuccessfulBackup = lastBackup.EndTimeString
+			}
+
+			if !reflect.DeepEqual(origCluster, cluster) {
+				return b.Client.Status().Patch(ctx, cluster, client.MergeFrom(origCluster))
+			}
+
+			return nil
 		}); err != nil {
-			b.Log.Error(err, "Can't update the first recoverability point")
+			b.Log.Error(err, "Can't update the cluster status")
 		}
 	}
-
-	if err = b.retryWithLatestCluster(ctx, func(cluster *apiv1.Cluster) error {
-		return b.setClusterLatestSuccessfulBackup(ctx, backupList)
-	}); err != nil {
-		b.Log.Error(err, "Can't update lastSuccessful backup data on cluster")
-	}
-}
-
-func (b *BackupCommand) setClusterLatestSuccessfulBackup(
-	ctx context.Context,
-	backupList *catalog.Catalog,
-) error {
-	lastBackup := backupList.LatestBackupInfo()
-	if lastBackup == nil {
-		return fmt.Errorf("no backup found")
-	}
-
-	origCluster := b.Cluster.DeepCopy()
-	b.Cluster.Status.LastSuccessfulBackup = lastBackup.EndTimeString
-
-	return retry.OnError(retry.DefaultBackoff, resources.RetryAlways, func() error {
-		return b.Client.Status().Patch(ctx, b.Cluster, client.MergeFrom(origCluster))
-	})
 }
 
 // UpdateBackupStatusAndRetry updates a certain backup's status in the k8s database,
@@ -447,26 +445,6 @@ func UpdateBackupStatusAndRetry(
 			newBackup.Status = backup.Status
 			return cli.Status().Update(ctx, newBackup)
 		})
-}
-
-// setClusterFirstRecoverabilityPoint sets the firstRecoverabilityPoint value in the status
-func (b *BackupCommand) setClusterFirstRecoverabilityPoint(
-	ctx context.Context,
-	firstRecoverabilityPoint string,
-) error {
-	if b.Cluster.Status.FirstRecoverabilityPoint == firstRecoverabilityPoint {
-		return nil
-	}
-
-	newCluster := &apiv1.Cluster{}
-	namespacedName := types.NamespacedName{Namespace: b.Cluster.GetNamespace(), Name: b.Cluster.GetName()}
-	err := b.Client.Get(ctx, namespacedName, newCluster)
-	if err != nil {
-		return err
-	}
-
-	newCluster.Status.FirstRecoverabilityPoint = firstRecoverabilityPoint
-	return b.Client.Status().Update(ctx, newCluster)
 }
 
 // setupBackupStatus configures the backup's status from the provided configuration and instance
