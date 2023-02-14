@@ -533,7 +533,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.generate-jobs.outputs.localMatrix) }}
-    runs-on: ubuntu-20.04
+    runs-on: 4c-16gb-150gb
     env:
       # TEST_DEPTH determines the matrix of K8S_VERSION x POSTGRES_VERSION jobs where E2E tests will be executed
       TEST_DEPTH: ${{ needs.evaluate_options.outputs.test_level }}
