@@ -692,6 +692,11 @@ func (r *ClusterReconciler) deleteEvictedOrUnscheduledInstances(
 			"Deleted evicted/unscheduled Pod %v",
 			instance.Name)
 
+		// we never delete the PVCs of unscheduled pods
+		if utils.IsPodUnscheduled(instance) {
+			continue
+		}
+
 		// we never delete the pvc unless we are in node Maintenance Window and the Reuse PVC is false
 		if !cluster.IsNodeMaintenanceWindowInProgress() || cluster.IsReusePVCEnabled() {
 			continue
@@ -707,7 +712,7 @@ func (r *ClusterReconciler) deleteEvictedOrUnscheduledInstances(
 			return nil, err
 		}
 		r.Recorder.Eventf(cluster, "Normal", "DeletePVCs",
-			"Deleted evicted/unscheduled Pod %v PVCs",
+			"Deleted evicted Pod %v PVCs",
 			instance.Name)
 	}
 
