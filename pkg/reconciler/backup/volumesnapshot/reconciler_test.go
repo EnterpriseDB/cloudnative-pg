@@ -182,10 +182,14 @@ var _ = Describe("Volumesnapshot reconciler", func() {
 						Labels: map[string]string{
 							utils.BackupNameLabelName: backupName,
 						},
+						Annotations: map[string]string{
+							"avoid": "nil",
+						},
 					},
 					Status: &storagesnapshotv1.VolumeSnapshotStatus{
-						ReadyToUse: ptr.To(true),
-						Error:      nil,
+						ReadyToUse:   ptr.To(true),
+						Error:        nil,
+						CreationTime: ptr.To(metav1.Now()),
 					},
 				},
 				{
@@ -195,10 +199,14 @@ var _ = Describe("Volumesnapshot reconciler", func() {
 						Labels: map[string]string{
 							utils.BackupNameLabelName: backupName,
 						},
+						Annotations: map[string]string{
+							"avoid": "nil",
+						},
 					},
 					Status: &storagesnapshotv1.VolumeSnapshotStatus{
-						ReadyToUse: ptr.To(true),
-						Error:      nil,
+						ReadyToUse:   ptr.To(true),
+						Error:        nil,
+						CreationTime: ptr.To(metav1.Now()),
 					},
 				},
 			},
