@@ -4,6 +4,7 @@ metadata:
   name: cluster-syncreplicas
 spec:
   instances: 3
+  enableSuperuserAccess: true
 
   minSyncReplicas: 1
   maxSyncReplicas: 2

@@ -4,6 +4,7 @@ metadata:
   name: cluster-volume-snapshot
 spec:
   instances: 2
+  enableSuperuserAccess: true
 
   bootstrap:
     initdb:

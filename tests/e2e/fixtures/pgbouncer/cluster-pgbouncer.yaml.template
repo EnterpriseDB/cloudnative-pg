@@ -4,6 +4,7 @@ metadata:
   name: cluster-pgbouncer
 spec:
   instances: 2
+  enableSuperuserAccess: true
 
   postgresql:
     parameters:

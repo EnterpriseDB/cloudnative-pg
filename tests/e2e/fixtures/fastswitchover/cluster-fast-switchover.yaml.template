@@ -5,6 +5,7 @@ metadata:
   name: cluster-fast-switchover
 spec:
   instances: 3
+  enableSuperuserAccess: true
 
   postgresql:
     parameters:

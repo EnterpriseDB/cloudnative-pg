@@ -4,6 +4,7 @@ metadata:
   name: cluster-replica-tls
 spec:
   instances: 2
+  enableSuperuserAccess: true
 
   bootstrap:
     pg_basebackup:

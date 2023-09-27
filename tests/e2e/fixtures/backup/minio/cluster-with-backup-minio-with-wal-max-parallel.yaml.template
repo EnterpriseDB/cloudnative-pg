@@ -4,6 +4,7 @@ metadata:
   name: cluster-backup-minio-wal-max-parallel
 spec:
   instances: 2
+  enableSuperuserAccess: true
 
   postgresql:
     parameters:

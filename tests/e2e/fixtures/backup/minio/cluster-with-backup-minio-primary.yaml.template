@@ -4,6 +4,7 @@ metadata:
   name: pg-backup-minio-primary
 spec:
   instances: 2
+  enableSuperuserAccess: true
 
   postgresql:
     parameters:

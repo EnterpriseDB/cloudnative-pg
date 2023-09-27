@@ -4,6 +4,7 @@ metadata:
   name: cluster-restored-sas
 spec:
   instances: 2
+  enableSuperuserAccess: true
 
   storage:
     storageClass: ${E2E_DEFAULT_STORAGE_CLASS}

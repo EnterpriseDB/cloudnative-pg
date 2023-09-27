@@ -4,6 +4,7 @@ metadata:
   name: cluster-replica-src
 spec:
   instances: 2
+  enableSuperuserAccess: true
 
   # Persistent storage configuration
   storage:

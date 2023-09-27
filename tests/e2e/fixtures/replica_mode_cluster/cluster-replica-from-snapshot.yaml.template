@@ -4,6 +4,7 @@ metadata:
   name: cluster-replica-from-snapshot
 spec:
   instances: 1
+  enableSuperuserAccess: true
 
   # Persistent storage configuration
   storage:

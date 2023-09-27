@@ -4,6 +4,7 @@ metadata:
   name: metrics-target-databases
 spec:
   instances: 3
+  enableSuperuserAccess: true
 
   postgresql:
     parameters:

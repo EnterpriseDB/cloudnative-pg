@@ -4,6 +4,7 @@ metadata:
   name: cluster-restore-custom
 spec:
   instances: 2
+  enableSuperuserAccess: true
 
   postgresql:
     parameters:

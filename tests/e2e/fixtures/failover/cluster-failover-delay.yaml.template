@@ -5,6 +5,8 @@ metadata:
 spec:
   failoverDelay: 15
   instances: 3
+  enableSuperuserAccess: true
+
   bootstrap:
     initdb:
       database: app

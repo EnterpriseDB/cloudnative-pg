@@ -4,6 +4,7 @@ metadata:
   name: cluster-pg-data-corruption
 spec:
   instances: 3
+  enableSuperuserAccess: true
 
   postgresql:
     parameters:

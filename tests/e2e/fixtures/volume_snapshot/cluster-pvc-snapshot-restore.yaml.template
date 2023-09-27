@@ -5,6 +5,7 @@ metadata:
 spec:
   instances: 1
   primaryUpdateStrategy: unsupervised
+  enableSuperuserAccess: true
 
   # Persistent storage configuration
   storage:

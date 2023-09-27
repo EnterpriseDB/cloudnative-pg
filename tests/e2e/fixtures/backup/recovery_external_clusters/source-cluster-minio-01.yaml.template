@@ -4,6 +4,7 @@ metadata:
   name: source-cluster-minio
 spec:
   instances: 2
+  enableSuperuserAccess: true
 
   postgresql:
     parameters:

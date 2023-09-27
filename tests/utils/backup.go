@@ -19,6 +19,7 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"k8s.io/utils/ptr"
 	"os"
 
 	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
@@ -114,7 +115,8 @@ func CreateClusterFromBackupUsingPITR(
 			Namespace: namespace,
 		},
 		Spec: apiv1.ClusterSpec{
-			Instances: 3,
+			Instances:             3,
+			EnableSuperuserAccess: ptr.To(true),
 
 			StorageConfiguration: apiv1.StorageConfiguration{
 				Size:         "1Gi",
@@ -178,7 +180,8 @@ func CreateClusterFromExternalClusterBackupWithPITROnAzure(
 			Namespace: namespace,
 		},
 		Spec: apiv1.ClusterSpec{
-			Instances: 3,
+			Instances:             3,
+			EnableSuperuserAccess: ptr.To(true),
 
 			StorageConfiguration: apiv1.StorageConfiguration{
 				Size:         "1Gi",
@@ -262,7 +265,8 @@ func CreateClusterFromExternalClusterBackupWithPITROnMinio(
 			Namespace: namespace,
 		},
 		Spec: apiv1.ClusterSpec{
-			Instances: 3,
+			Instances:             3,
+			EnableSuperuserAccess: ptr.To(true),
 
 			StorageConfiguration: apiv1.StorageConfiguration{
 				Size:         "1Gi",
@@ -354,7 +358,8 @@ func CreateClusterFromExternalClusterBackupWithPITROnAzurite(
 			Namespace: namespace,
 		},
 		Spec: apiv1.ClusterSpec{
-			Instances: 3,
+			Instances:             3,
+			EnableSuperuserAccess: ptr.To(true),
 
 			StorageConfiguration: apiv1.StorageConfiguration{
 				Size:         "1Gi",

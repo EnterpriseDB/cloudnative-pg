@@ -4,6 +4,7 @@ metadata:
   name: primary-update-restart
 spec:
   instances: 3
+  enableSuperuserAccess: true
 
   postgresql:
     parameters:

@@ -6,6 +6,7 @@ metadata:
   name: cluster-archive-mode-always
 spec:
   instances: 1
+  enableSuperuserAccess: true
 
   bootstrap:
     pg_basebackup:

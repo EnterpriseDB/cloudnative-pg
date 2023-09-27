@@ -4,6 +4,7 @@ metadata:
   name: cluster-drain-node
 spec:
   instances: 3
+  enableSuperuserAccess: true
 
   affinity:
       nodeSelector:

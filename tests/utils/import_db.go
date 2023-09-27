@@ -18,6 +18,7 @@ package utils
 
 import (
 	"fmt"
+	"k8s.io/utils/ptr"
 	"os"
 
 	corev1 "k8s.io/api/core/v1"
@@ -48,8 +49,9 @@ func ImportDatabaseMicroservice(
 			Namespace: namespace,
 		},
 		Spec: apiv1.ClusterSpec{
-			Instances: 3,
-			ImageName: imageName,
+			Instances:             3,
+			ImageName:             imageName,
+			EnableSuperuserAccess: ptr.To(true),
 
 			StorageConfiguration: apiv1.StorageConfiguration{
 				Size:         "1Gi",
@@ -119,8 +121,9 @@ func ImportDatabasesMonolith(
 			Namespace: namespace,
 		},
 		Spec: apiv1.ClusterSpec{
-			Instances: 3,
-			ImageName: imageName,
+			Instances:             3,
+			ImageName:             imageName,
+			EnableSuperuserAccess: ptr.To(true),
 
 			StorageConfiguration: apiv1.StorageConfiguration{
 				Size:         "1Gi",

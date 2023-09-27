@@ -4,6 +4,7 @@ metadata:
   name: operator-unavailable
 spec:
   instances: 3
+  enableSuperuserAccess: true
 
   postgresql:
     parameters:
