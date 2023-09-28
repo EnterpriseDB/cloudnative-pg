@@ -123,10 +123,20 @@ func (se *Reconciler) Execute(
 	targetPod *corev1.Pod,
 	pvcs []corev1.PersistentVolumeClaim,
 ) (*ctrl.Result, error) {
+	if cluster.Spec.Backup == nil || cluster.Spec.Backup.VolumeSnapshot == nil {
+		return nil, fmt.Errorf("cannot execute a VolumeSnapshot on a cluster without configuration")
+	}
+
 	contextLogger := log.FromContext(ctx).WithValues("podName", targetPod.Name)
 
+	// Step 0: check if the snapshots have been created already
+	volumeSnapshots, err := GetBackupVolumeSnapshots(ctx, se.cli, cluster.Namespace, backup.Name)
+	if err != nil {
+		return nil, err
+	}
+
 	// Step 1: fencing
-	if se.shouldFence {
+	if len(volumeSnapshots) == 0 && se.shouldFence {
 		contextLogger.Debug("Checking pre-requisites")
 		if err := se.ensurePodIsFenced(ctx, cluster, backup, targetPod.Name); err != nil {
 			return nil, err
@@ -138,10 +148,6 @@ func (se *Reconciler) Execute(
 	}
 
 	// Step 2: create snapshot
-	volumeSnapshots, err := GetBackupVolumeSnapshots(ctx, se.cli, cluster.Namespace, backup.Name)
-	if err != nil {
-		return nil, err
-	}
 	if len(volumeSnapshots) == 0 {
 		// we execute the snapshots only if we don't find any
 		if err := se.createSnapshotPVCGroupStep(ctx, cluster, pvcs, backup, targetPod); err != nil {
@@ -174,6 +180,8 @@ func (se *Reconciler) ensurePodIsFenced(
 	backup *apiv1.Backup,
 	targetPodName string,
 ) error {
+	contextLogger := log.FromContext(ctx)
+
 	fencedInstances, err := utils.GetFencedInstances(cluster.Annotations)
 	if err != nil {
 		return fmt.Errorf("could not check if cluster is fenced: %v", err)
@@ -188,21 +196,27 @@ func (se *Reconciler) ensurePodIsFenced(
 		return errors.New("cannot execute volume snapshot on a cluster that has fenced instances")
 	}
 
-	// The list of fenced instances is empty, so we need to request
-	// fencing for the target pod
-	se.recorder.Eventf(backup, "Normal", "FencePod",
-		"Requesting fencing for Pod %v", targetPodName)
-
-	if err := resources.ApplyFenceFunc(
+	err = resources.ApplyFenceFunc(
 		ctx,
 		se.cli,
 		cluster.Name,
 		cluster.Namespace,
 		targetPodName,
 		utils.AddFencedInstance,
-	); !errors.Is(err, utils.ErrorServerAlreadyFenced) {
+	)
+	if errors.Is(err, utils.ErrorServerAlreadyFenced) {
+		return nil
+	}
+	if err != nil {
 		return err
 	}
+
+	// The list of fenced instances is empty, so we need to request
+	// fencing for the target pod
+	contextLogger.Info("Fencing Pod", "podName", targetPodName)
+	se.recorder.Eventf(backup, "Normal", "FencePod",
+		"Fencing Pod %v", targetPodName)
+
 	return nil
 }
 
@@ -214,23 +228,28 @@ func (se *Reconciler) EnsurePodIsUnfenced(
 	targetPod *corev1.Pod,
 ) error {
 	contextLogger := log.FromContext(ctx)
-	contextLogger.Info("Unfencing Pod")
 
-	if err := resources.ApplyFenceFunc(
+	err := resources.ApplyFenceFunc(
 		ctx,
 		se.cli,
 		cluster.Name,
 		cluster.Namespace,
 		targetPod.Name,
 		utils.RemoveFencedInstance,
-	); err != nil {
+	)
+	if errors.Is(err, utils.ErrorServerAlreadyUnfenced) {
+		return nil
+	}
+	if err != nil {
 		return err
 	}
 
 	// The list of fenced instances is empty, so we need to request
 	// fencing for the target pod
+	contextLogger.Info("Unfencing Pod", "podName", targetPod.Name)
 	se.recorder.Eventf(backup, "Normal", "UnfencePod",
-		"Un-fencing Pod %v", targetPod.Name)
+		"Unfencing Pod %v", targetPod.Name)
+
 	return nil
 }
 
@@ -263,13 +282,11 @@ func (se *Reconciler) createSnapshotPVCGroupStep(
 	backup *apiv1.Backup,
 	targetPod *corev1.Pod,
 ) error {
-	snapshotSuffix := fmt.Sprintf("%d", time.Now().Unix())
-
 	for i := range pvcs {
 		se.recorder.Eventf(backup, "Normal", "CreateSnapshot",
 			"Creating VolumeSnapshot for PVC %v", pvcs[i].Name)
 
-		err := se.createSnapshot(ctx, cluster, backup, targetPod, &pvcs[i], snapshotSuffix)
+		err := se.createSnapshot(ctx, cluster, backup, targetPod, &pvcs[i])
 		if err != nil {
 			return err
 		}
@@ -300,12 +317,15 @@ func (se *Reconciler) createSnapshot(
 	backup *apiv1.Backup,
 	targetPod *corev1.Pod,
 	pvc *corev1.PersistentVolumeClaim,
-	snapshotSuffix string,
 ) error {
-	snapshotConfig := *cluster.Spec.Backup.VolumeSnapshot
-	name := se.getSnapshotName(pvc.Name, snapshotSuffix)
-	var snapshotClassName *string
 	role := utils.PVCRole(pvc.Labels[utils.PvcRoleLabelName])
+	name, err := getSnapshotName(backup.Name, role)
+	if err != nil {
+		return err
+	}
+
+	snapshotConfig := *cluster.Spec.Backup.VolumeSnapshot
+	var snapshotClassName *string
 	if role == utils.PVCRolePgWal && snapshotConfig.WalClassName != "" {
 		snapshotClassName = &snapshotConfig.WalClassName
 	}
@@ -345,8 +365,7 @@ func (se *Reconciler) createSnapshot(
 		return err
 	}
 
-	err := se.cli.Create(ctx, &snapshot)
-	if err != nil {
+	if err := se.cli.Create(ctx, &snapshot); err != nil {
 		return fmt.Errorf("while creating VolumeSnapshot %s: %w", snapshot.Name, err)
 	}
 
@@ -375,6 +394,13 @@ func (se *Reconciler) waitSnapshot(
 }
 
 // getSnapshotName gets the snapshot name for a certain PVC
-func (se *Reconciler) getSnapshotName(pvcName string, snapshotSuffix string) string {
-	return fmt.Sprintf("%s-%s", pvcName, snapshotSuffix)
+func getSnapshotName(backupName string, role utils.PVCRole) (string, error) {
+	switch role {
+	case utils.PVCRolePgData, "":
+		return backupName, nil
+	case utils.PVCRolePgWal:
+		return fmt.Sprintf("%s-wal", backupName), nil
+	default:
+		return "", fmt.Errorf("unhandled PVCRole type: %s", role)
+	}
 }
