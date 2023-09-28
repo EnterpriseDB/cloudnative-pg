@@ -482,14 +482,14 @@ jobs:
             VERSION=${{ env.VERSION }}
           tags: ${{ steps.docker-meta.outputs.tags }}
 
-      - name: Outputs
+      - name: Output images
         env:
-          IMAGE: ${{ steps.docker-meta.outputs.tags }}
+          TAGS: ${{ steps.docker-meta.outputs.tags }}
         run: |
-          echo $IMAGE
-          TAG=${IMAGE#*:}
-          echo "CONTROLLER_IMG=${IMAGE}" >> $GITHUB_ENV
-          echo "BUNDLE_IMG=${CNPG_IMAGE_NAME}:bundle-${TAG}" >> $GITHUB_ENV
+          LOWERCASE_CNPG_IMAGE_NAME=${CNPG_IMAGE_NAME,,}
+          TAG=${TAGS#*:}
+          echo "CONTROLLER_IMG=${LOWERCASE_CNPG_IMAGE_NAME}:${TAG}" >> $GITHUB_ENV
+          echo "BUNDLE_IMG=${LOWERCASE_CNPG_IMAGE_NAME}:bundle-${TAG}" >> $GITHUB_ENV
 
   olm-bundle:
     name: Create OLM Bundle and Catalog
@@ -509,7 +509,7 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:
-          plafforms: ${{ needs.buildx.outputs.platforms }}
+          platforms: ${{ needs.buildx.outputs.platforms }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -560,7 +560,7 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:
-          plafforms: ${{ needs.buildx.outputs.platforms }}
+          platforms: ${{ needs.buildx.outputs.platforms }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
