@@ -49,9 +49,8 @@ func ImportDatabaseMicroservice(
 			Namespace: namespace,
 		},
 		Spec: apiv1.ClusterSpec{
-			Instances:             3,
-			ImageName:             imageName,
-			EnableSuperuserAccess: ptr.To(true),
+			Instances: 3,
+			ImageName: imageName,
 
 			StorageConfiguration: apiv1.StorageConfiguration{
 				Size:         "1Gi",

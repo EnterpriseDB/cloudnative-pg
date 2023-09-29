@@ -66,7 +66,7 @@ var _ = Describe("Synchronous Replicas", Label(tests.LabelReplication), func() {
 					namespace,
 					clusterName,
 					psqlClientPod,
-					apiv1.SuperUserSecretSuffix,
+					apiv1.ApplicationUserSecretSuffix,
 					utils.AppDBName,
 					query,
 				)

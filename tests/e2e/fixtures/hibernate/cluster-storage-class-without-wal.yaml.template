@@ -4,7 +4,6 @@ metadata:
   name: postgresql-hibernate
 spec:
   instances: 3
-  enableSuperuserAccess: true
 
   postgresql:
     parameters:

@@ -4,6 +4,5 @@ metadata:
   name: cluster-declarative-backup
 spec:
   method: volumeSnapshot
-
   cluster:
     name: cluster-declarative-backup

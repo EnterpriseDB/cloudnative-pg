@@ -4,7 +4,6 @@ metadata:
   name: external-cluster-azure
 spec:
   instances: 2
-  enableSuperuserAccess: true
 
   postgresql:
     parameters:

@@ -4,7 +4,6 @@ metadata:
   name: pg-backup-azure-blob-sas
 spec:
   instances: 2
-  enableSuperuserAccess: true
 
   postgresql:
     parameters:

@@ -4,8 +4,6 @@ metadata:
   name: cluster-pgdump-error
 spec:
   instances: 3
-  enableSuperuserAccess: true
-
   bootstrap:
     initdb:
       import:

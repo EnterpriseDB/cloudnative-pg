@@ -4,7 +4,6 @@ metadata:
   name: operator-ha
 spec:
   instances: 3
-  enableSuperuserAccess: true
 
   postgresql:
     parameters:

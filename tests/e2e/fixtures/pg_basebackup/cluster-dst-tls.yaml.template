@@ -4,7 +4,6 @@ metadata:
   name: pg-basebackup-dst-tls-auth
 spec:
   instances: 2
-  enableSuperuserAccess: true
 
   postgresql:
     parameters:

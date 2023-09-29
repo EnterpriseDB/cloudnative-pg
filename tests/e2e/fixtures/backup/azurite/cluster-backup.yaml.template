@@ -4,7 +4,6 @@ metadata:
   name: pg-backup-azurite
 spec:
   instances: 2
-  enableSuperuserAccess: true
 
   # Persistent storage configuration
   storage:

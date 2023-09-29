@@ -20,12 +20,14 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	apiv1 "github.com/cloudnative-pg/cloudnative-pg/api/v1"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/postgres"
+	"github.com/cloudnative-pg/cloudnative-pg/pkg/specs"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/utils"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/versions"
 	"github.com/cloudnative-pg/cloudnative-pg/tests"
@@ -210,47 +212,69 @@ func assertCreateTableWithDataOnSourceCluster(
 	tableName,
 	clusterName string,
 ) {
-	By("generate super user password,rw service name on source cluster", func() {
-		superUser, generatedSuperuserPassword, err := testsUtils.GetCredentials(
-			clusterName, namespace, apiv1.SuperUserSecretSuffix, env)
+	By("create user, insert record in new table, assign new user as owner "+
+		"and grant read only to app user", func() {
+		pod, err := env.GetClusterPrimary(namespace, clusterName)
 		Expect(err).ToNot(HaveOccurred())
-		rwService := fmt.Sprintf("%v-rw.%v.svc", clusterName, namespace)
-		By("create user, insert record in new table, assign new user as owner "+
-			"and grant read only to app user", func() {
-			query := fmt.Sprintf("DROP USER IF EXISTS micro; CREATE USER micro; "+
-				"CREATE TABLE IF NOT EXISTS %[1]v AS VALUES (1),(2); "+
-				"ALTER TABLE %[1]v OWNER TO micro;grant select on %[1]v to app;", tableName)
-			_, _, err = testsUtils.RunQueryFromPod(
-				psqlClientPod, rwService, "app", superUser, generatedSuperuserPassword, query, env)
-			Expect(err).ToNot(HaveOccurred())
-		})
+		commandTimeout := time.Second * 10
+
+		query := fmt.Sprintf("DROP USER IF EXISTS micro; CREATE USER micro; "+
+			"CREATE TABLE IF NOT EXISTS %[1]v AS VALUES (1),(2); "+
+			"ALTER TABLE %[1]v OWNER TO micro;grant select on %[1]v to app;", tableName)
+
+		_, _, err = env.ExecCommand(
+			env.Ctx,
+			*pod,
+			specs.PostgresContainerName,
+			&commandTimeout,
+			"psql", "-U", "postgres", "-tAc", query)
+		Expect(err).ToNot(HaveOccurred())
 	})
 }
 
-// assertTableAndDataOnImportedCluster  verifies the data created in source was imported
+// assertTableAndDataOnImportedCluster verifies the data created in source was imported
 func assertTableAndDataOnImportedCluster(
 	namespace,
 	tableName,
 	importedClusterName string,
 ) {
 	By("verifying presence of table and data from source in imported cluster", func() {
-		superUser, generatedSuperuserPassword, err := testsUtils.GetCredentials(importedClusterName,
-			namespace, apiv1.SuperUserSecretSuffix, env)
+		appUser, appUserPassword, err := testsUtils.GetCredentials(importedClusterName,
+			namespace, apiv1.ApplicationUserSecretSuffix, env)
 		Expect(err).ToNot(HaveOccurred())
-		importedrwService := fmt.Sprintf("%v-rw.%v.svc", importedClusterName, namespace)
-		By("Verifying imported table has owner app user", func() {
-			queryImported := fmt.Sprintf("select * from pg_tables where tablename = '%v' "+
-				"and tableowner = 'app';", tableName)
+		host, err := testsUtils.GetHostName(namespace, importedClusterName, env)
+		Expect(err).ToNot(HaveOccurred())
 
+		By("Verifying imported table has owner app user", func() {
+			queryImported := fmt.Sprintf(
+				"select * from pg_tables where tablename = '%v' and tableowner = '%v'",
+				tableName,
+				appUser,
+			)
 			out, _, err := testsUtils.RunQueryFromPod(
-				psqlClientPod, importedrwService, "app", superUser,
-				generatedSuperuserPassword, queryImported, env)
+				psqlClientPod,
+				host,
+				testsUtils.AppDBName,
+				appUser,
+				appUserPassword,
+				queryImported,
+				env,
+			)
+			Expect(err).ToNot(HaveOccurred())
 			Expect(strings.Contains(out, tableName), err).Should(BeTrue())
 		})
+
 		By("verifying the user named 'micro' on source is not in imported database", func() {
 			outUser, _, err := testsUtils.RunQueryFromPod(
-				psqlClientPod, importedrwService, "app", superUser,
-				generatedSuperuserPassword, "\\du", env)
+				psqlClientPod,
+				host,
+				testsUtils.AppDBName,
+				appUser,
+				appUserPassword,
+				"\\du",
+				env,
+			)
+			Expect(err).ToNot(HaveOccurred())
 			Expect(strings.Contains(outUser, "micro"), err).Should(BeFalse())
 		})
 	})
@@ -272,54 +296,25 @@ func assertImportRenamesSelectedDatabase(
 	Expect(err).ToNot(HaveOccurred())
 
 	AssertCreateCluster(namespace, clusterName, sampleFile, env)
+	primaryPod, err := env.GetClusterPrimary(namespace, clusterName)
+	Expect(err).ToNot(HaveOccurred())
+	commandTimeout := time.Second * 10
 
 	By("creating multiple dbs on source and set ownership to app", func() {
-		rwService := testsUtils.CreateServiceFQDN(namespace, testsUtils.GetReadWriteServiceName(clusterName))
-		superUser, getSuperUserPassword, err := testsUtils.GetCredentials(
-			clusterName, namespace, apiv1.SuperUserSecretSuffix, env)
-		Expect(err).ToNot(HaveOccurred())
 		for _, db := range dbList {
 			// Create database
-			createDBQuery := fmt.Sprintf("create database %v;", db)
-			_, _, err = testsUtils.RunQueryFromPod(
-				psqlClientPod,
-				rwService,
-				testsUtils.PostgresDBName,
-				superUser,
-				getSuperUserPassword,
-				createDBQuery,
-				env)
-			Expect(err).ToNot(HaveOccurred())
-
-			AlterOwnerQuery := fmt.Sprintf("ALTER DATABASE %v OWNER TO app;", db)
-			_, _, err = testsUtils.RunQueryFromPod(
-				psqlClientPod,
-				rwService,
-				testsUtils.PostgresDBName,
-				testsUtils.PostgresUser,
-				getSuperUserPassword,
-				AlterOwnerQuery,
-				env)
+			createDBQuery := fmt.Sprintf("CREATE DATABASE %v OWNER app", db)
+			_, _, err = env.ExecCommand(
+				env.Ctx,
+				*primaryPod,
+				specs.PostgresContainerName,
+				&commandTimeout,
+				"psql", "-U", "postgres", "-tAc", createDBQuery)
 			Expect(err).ToNot(HaveOccurred())
 		}
 	})
 
-	By(fmt.Sprintf("creating table '%s' and insert records on selected db %v", tableName, dbToImport), func() {
-		superUser, getSuperUserPassword, err := testsUtils.GetCredentials(
-			clusterName, namespace, apiv1.SuperUserSecretSuffix, env)
-		Expect(err).ToNot(HaveOccurred())
-		rwService := testsUtils.CreateServiceFQDN(namespace, testsUtils.GetReadWriteServiceName(clusterName))
-		// set role app on db2
-		_, _, err = testsUtils.RunQueryFromPod(psqlClientPod, rwService,
-			dbToImport, superUser, getSuperUserPassword,
-			"set role app;", env)
-		Expect(err).ToNot(HaveOccurred())
-		// create test data and insert records
-		_, _, err = testsUtils.RunQueryFromPod(psqlClientPod, rwService,
-			dbToImport, superUser, getSuperUserPassword,
-			fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s AS VALUES (1),(2);", tableName), env)
-		Expect(err).ToNot(HaveOccurred())
-	})
+	AssertCreateTestData(namespace, clusterName, tableName, psqlClientPod)
 
 	var importedCluster *apiv1.Cluster
 	By("importing Database with microservice approach in a new cluster", func() {
@@ -334,15 +329,23 @@ func assertImportRenamesSelectedDatabase(
 	AssertDataExpectedCount(namespace, importedClusterName, tableName, 2, psqlClientPod)
 
 	By("verifying that only 'app' DB exists in the imported cluster", func() {
-		superUser, getSuperUserPassword, err := testsUtils.GetCredentials(
-			importedClusterName, namespace, apiv1.SuperUserSecretSuffix, env)
+		appUser, appUserPassword, err := testsUtils.GetCredentials(
+			importedClusterName, namespace, apiv1.ApplicationUserSecretSuffix, env)
 		Expect(err).ToNot(HaveOccurred())
-		rwService := testsUtils.CreateServiceFQDN(namespace, testsUtils.GetReadWriteServiceName(importedClusterName))
-		dbList, _, err := testsUtils.RunQueryFromPod(psqlClientPod, rwService,
-			"postgres", superUser, getSuperUserPassword, "\\l", env)
+		host, err := testsUtils.GetHostName(namespace, importedClusterName, env)
+		Expect(err).ToNot(HaveOccurred())
+		out, _, err := testsUtils.RunQueryFromPod(
+			psqlClientPod,
+			host,
+			testsUtils.AppDBName,
+			appUser,
+			appUserPassword,
+			"\\l",
+			env,
+		)
 		Expect(err).ToNot(HaveOccurred(), err)
-		Expect(strings.Contains(dbList, "db2"), err).Should(BeFalse())
-		Expect(strings.Contains(dbList, "app"), err).Should(BeTrue())
+		Expect(strings.Contains(out, "db2"), err).Should(BeFalse())
+		Expect(strings.Contains(out, "app"), err).Should(BeTrue())
 	})
 
 	By("cleaning up the clusters", func() {

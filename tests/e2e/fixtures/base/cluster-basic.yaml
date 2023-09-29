@@ -4,7 +4,6 @@ metadata:
   name: cluster-basic
 spec:
   instances: 3
-  enableSuperuserAccess: true
 
   storage:
     size: 1Gi

@@ -4,7 +4,6 @@ metadata:
   name: cluster-pgstatstatements
 spec:
   instances: 3
-  enableSuperuserAccess: true
 
   minSyncReplicas: 1
   maxSyncReplicas: 1

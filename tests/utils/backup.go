@@ -24,7 +24,6 @@ import (
 	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 
 	apiv1 "github.com/cloudnative-pg/cloudnative-pg/api/v1"
 
@@ -115,8 +114,7 @@ func CreateClusterFromBackupUsingPITR(
 			Namespace: namespace,
 		},
 		Spec: apiv1.ClusterSpec{
-			Instances:             3,
-			EnableSuperuserAccess: ptr.To(true),
+			Instances: 3,
 
 			StorageConfiguration: apiv1.StorageConfiguration{
 				Size:         "1Gi",
@@ -180,8 +178,7 @@ func CreateClusterFromExternalClusterBackupWithPITROnAzure(
 			Namespace: namespace,
 		},
 		Spec: apiv1.ClusterSpec{
-			Instances:             3,
-			EnableSuperuserAccess: ptr.To(true),
+			Instances: 3,
 
 			StorageConfiguration: apiv1.StorageConfiguration{
 				Size:         "1Gi",
@@ -265,8 +262,7 @@ func CreateClusterFromExternalClusterBackupWithPITROnMinio(
 			Namespace: namespace,
 		},
 		Spec: apiv1.ClusterSpec{
-			Instances:             3,
-			EnableSuperuserAccess: ptr.To(true),
+			Instances: 3,
 
 			StorageConfiguration: apiv1.StorageConfiguration{
 				Size:         "1Gi",
@@ -358,8 +354,7 @@ func CreateClusterFromExternalClusterBackupWithPITROnAzurite(
 			Namespace: namespace,
 		},
 		Spec: apiv1.ClusterSpec{
-			Instances:             3,
-			EnableSuperuserAccess: ptr.To(true),
+			Instances: 3,
 
 			StorageConfiguration: apiv1.StorageConfiguration{
 				Size:         "1Gi",

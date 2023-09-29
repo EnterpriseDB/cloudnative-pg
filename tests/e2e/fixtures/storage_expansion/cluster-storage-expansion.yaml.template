@@ -4,7 +4,6 @@ metadata:
   name: storage-expansion
 spec:
   instances: 3
-  enableSuperuserAccess: true
 
   postgresql:
     parameters:

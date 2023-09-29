@@ -86,7 +86,7 @@ var _ = Describe("Failover", Label(tests.LabelSelfHealing), func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			// Terminate the pausedReplica walsender on the primary.
-			// We don't wont to wait for the replication timeout.
+			// We don't want to wait for the replication timeout.
 			query = fmt.Sprintf("SELECT pg_terminate_backend(pid) FROM pg_stat_replication "+
 				"WHERE application_name = '%v'", pausedReplica)
 			_, _, err = env.ExecCommandWithPsqlClient(

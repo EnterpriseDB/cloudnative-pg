@@ -4,7 +4,6 @@ metadata:
   name: postgresql-metrics
 spec:
   instances: 3
-  enableSuperuserAccess: true
 
   postgresql:
     parameters:
