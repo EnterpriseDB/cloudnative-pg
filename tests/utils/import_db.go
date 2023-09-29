@@ -18,11 +18,11 @@ package utils
 
 import (
 	"fmt"
-	"k8s.io/utils/ptr"
 	"os"
 
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	apiv1 "github.com/cloudnative-pg/cloudnative-pg/api/v1"
 )
