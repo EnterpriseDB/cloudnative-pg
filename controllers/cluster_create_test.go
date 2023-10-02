@@ -106,7 +106,7 @@ var _ = Describe("cluster_create unit tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		By("making sure that the superUser secret has been created", func() {
+		By("making sure that the superUser secret has been created correctly", func() {
 			superUser := corev1.Secret{}
 			err := k8sClient.Get(
 				ctx,
@@ -114,6 +114,9 @@ var _ = Describe("cluster_create unit tests", func() {
 				&superUser,
 			)
 			Expect(err).ToNot(HaveOccurred())
+			Expect(superUser.Data["username"]).To(Equal("postgres"))
+			Expect(superUser.Data["password"]).To(HaveLen(64))
+			Expect(superUser.Data["dbname"]).To(Equal("*"))
 		})
 	})
 
