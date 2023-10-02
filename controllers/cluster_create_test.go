@@ -28,6 +28,7 @@ import (
 	"k8s.io/client-go/discovery"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	"k8s.io/client-go/testing"
+	"k8s.io/utils/ptr"
 	k8client "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -62,17 +63,18 @@ var _ = Describe("cluster_create unit tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		By("making sure that the superUser secret have been created", func() {
+		By("making sure that the superUser secret has not been created", func() {
 			superUser := corev1.Secret{}
 			err := k8sClient.Get(
 				ctx,
 				types.NamespacedName{Name: cluster.GetSuperuserSecretName(), Namespace: namespace},
 				&superUser,
 			)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(err).To(HaveOccurred())
+			Expect(apierrs.IsNotFound(err)).To(BeTrue())
 		})
 
-		By("making sure that the appUserSecret have been created", func() {
+		By("making sure that the appUserSecret has been created", func() {
 			appUser := corev1.Secret{}
 			err := k8sClient.Get(
 				ctx,
@@ -82,12 +84,34 @@ var _ = Describe("cluster_create unit tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		By("making sure that the pooler secrets have been created", func() {
+		By("making sure that the pooler secrets has been created", func() {
 			poolerSecret := corev1.Secret{}
 			err := k8sClient.Get(
 				ctx,
 				types.NamespacedName{Name: poolerSecretName, Namespace: namespace},
 				&poolerSecret,
+			)
+			Expect(err).ToNot(HaveOccurred())
+		})
+	})
+
+	It("should make sure that superUser secret is created if EnableSuperuserAccess is enabled", func() {
+		ctx := context.Background()
+		namespace := newFakeNamespace()
+		cluster := newFakeCNPGCluster(namespace)
+		cluster.Spec.EnableSuperuserAccess = ptr.To(true)
+
+		By("executing reconcilePostgresSecrets", func() {
+			err := clusterReconciler.reconcilePostgresSecrets(ctx, cluster)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		By("making sure that the superUser secret has been created", func() {
+			superUser := corev1.Secret{}
+			err := k8sClient.Get(
+				ctx,
+				types.NamespacedName{Name: cluster.GetSuperuserSecretName(), Namespace: namespace},
+				&superUser,
 			)
 			Expect(err).ToNot(HaveOccurred())
 		})
