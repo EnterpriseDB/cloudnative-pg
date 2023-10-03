@@ -82,6 +82,9 @@ var _ = Describe("cluster_create unit tests", func() {
 				&appUser,
 			)
 			Expect(err).ToNot(HaveOccurred())
+			Expect(string(appUser.Data["username"])).To(Equal("app"))
+			Expect(string(appUser.Data["password"])).To(HaveLen(64))
+			Expect(string(appUser.Data["dbname"])).To(Equal("app"))
 		})
 
 		By("making sure that the pooler secrets has been created", func() {
@@ -114,9 +117,9 @@ var _ = Describe("cluster_create unit tests", func() {
 				&superUser,
 			)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(superUser.Data["username"]).To(Equal("postgres"))
-			Expect(superUser.Data["password"]).To(HaveLen(64))
-			Expect(superUser.Data["dbname"]).To(Equal("*"))
+			Expect(string(superUser.Data["username"])).To(Equal("postgres"))
+			Expect(string(superUser.Data["password"])).To(HaveLen(64))
+			Expect(string(superUser.Data["dbname"])).To(Equal("*"))
 		})
 	})
 
