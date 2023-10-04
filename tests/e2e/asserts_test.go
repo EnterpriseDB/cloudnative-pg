@@ -1043,20 +1043,21 @@ func AssertFastFailOver(
 			", PRIMARY KEY (id)" +
 			")"
 
-		commandTimeout := time.Second * 10
-		primaryPodName := clusterName + "-1"
-		primaryPod := &corev1.Pod{}
+		host, err := testsUtils.GetHostName(namespace, clusterName, env)
+		Expect(err).ToNot(HaveOccurred())
+		appUser, appUserPass, err := testsUtils.GetCredentials(clusterName, namespace,
+			apiv1.ApplicationUserSecretSuffix, env)
+		Expect(err).ToNot(HaveOccurred())
 
-		Eventually(func(g Gomega) {
-			err := env.Client.Get(env.Ctx, types.NamespacedName{
-				Namespace: namespace,
-				Name:      primaryPodName,
-			}, primaryPod)
-			g.Expect(err).ToNot(HaveOccurred())
-		}).Should(Succeed())
-
-		_, _, err = env.EventuallyExecCommand(env.Ctx, *primaryPod, specs.PostgresContainerName,
-			&commandTimeout, "psql", "-U", "postgres", "app", "-tAc", query)
+		_, _, err = testsUtils.RunQueryFromPod(
+			psqlClientPod,
+			host,
+			testsUtils.AppDBName,
+			appUser,
+			appUserPass,
+			query,
+			env,
+		)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
