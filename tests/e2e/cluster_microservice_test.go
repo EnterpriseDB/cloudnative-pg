@@ -205,8 +205,10 @@ func shouldSkip(postgresImage string) bool {
 	return currentImageVersion >= defaultImageVersion
 }
 
-// assertCreateTableWithDataOnSourceCluster creates a new user `micro` in the source cluster,
-// and uses the `postgres` superuser to generate a new table and assign ownership to `micro`
+// assertCreateTableWithDataOnSourceCluster will create on the source Cluster, as postgres superUser:
+// 1. a new user `micro`
+// 2. a new table with 2 records owned by `micro` in the `app` database
+// 3. grant select permission on the table to the `app` user (needed during the import)
 func assertCreateTableWithDataOnSourceCluster(
 	namespace,
 	tableName,
@@ -218,16 +220,20 @@ func assertCreateTableWithDataOnSourceCluster(
 		Expect(err).ToNot(HaveOccurred())
 		commandTimeout := time.Second * 10
 
-		query := fmt.Sprintf("DROP USER IF EXISTS micro; CREATE USER micro; "+
-			"CREATE TABLE IF NOT EXISTS %[1]v AS VALUES (1),(2); "+
-			"ALTER TABLE %[1]v OWNER TO micro;grant select on %[1]v to app;", tableName)
+		query := fmt.Sprintf(
+			"DROP USER IF EXISTS micro; "+
+				"CREATE USER micro; "+
+				"CREATE TABLE IF NOT EXISTS %[1]v AS VALUES (1),(2); "+
+				"ALTER TABLE %[1]v OWNER TO micro; "+
+				"GRANT SELECT ON %[1]v TO app;",
+			tableName)
 
 		_, _, err = env.ExecCommand(
 			env.Ctx,
 			*pod,
 			specs.PostgresContainerName,
 			&commandTimeout,
-			"psql", "-U", "postgres", "-tAc", query)
+			"psql", "-U", "postgres", "app", "-tAc", query)
 		Expect(err).ToNot(HaveOccurred())
 	})
 }
@@ -314,7 +320,25 @@ func assertImportRenamesSelectedDatabase(
 		}
 	})
 
-	AssertCreateTestData(namespace, clusterName, tableName, psqlClientPod)
+	By(fmt.Sprintf("creating table '%s' and insert records on selected db %v", tableName, dbToImport), func() {
+		appUser, appUserPassword, err := testsUtils.GetCredentials(
+			clusterName, namespace, apiv1.ApplicationUserSecretSuffix, env)
+		Expect(err).ToNot(HaveOccurred())
+		host, err := testsUtils.GetHostName(namespace, clusterName, env)
+		Expect(err).ToNot(HaveOccurred())
+		// create a table with two records
+		query := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s AS VALUES (1),(2);", tableName)
+		_, _, err = testsUtils.RunQueryFromPod(
+			psqlClientPod,
+			host,
+			dbToImport,
+			appUser,
+			appUserPassword,
+			query,
+			env,
+		)
+		Expect(err).ToNot(HaveOccurred())
+	})
 
 	var importedCluster *apiv1.Cluster
 	By("importing Database with microservice approach in a new cluster", func() {

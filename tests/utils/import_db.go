@@ -29,6 +29,8 @@ import (
 
 // ImportDatabaseMicroservice creates a cluster, starting from an external cluster
 // using microservice approach
+// NOTE: the application user on the source Cluster needs to be granted with
+// REPLICATION permissions, which are not set by default
 func ImportDatabaseMicroservice(
 	namespace,
 	sourceClusterName,
@@ -41,8 +43,11 @@ func ImportDatabaseMicroservice(
 		imageName = os.Getenv("POSTGRES_IMG")
 	}
 	storageClassName := os.Getenv("E2E_DEFAULT_STORAGE_CLASS")
-	host := fmt.Sprintf("%v-rw.%v.svc", sourceClusterName, namespace)
-	superUserSecretName := fmt.Sprintf("%v-superuser", sourceClusterName)
+	host, err := GetHostName(namespace, sourceClusterName, env)
+	if err != nil {
+		return nil, err
+	}
+	appUserSecretName := sourceClusterName + apiv1.ApplicationUserSecretSuffix
 	restoreCluster := &apiv1.Cluster{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      importedClusterName,
@@ -72,11 +77,15 @@ func ImportDatabaseMicroservice(
 
 			ExternalClusters: []apiv1.ExternalCluster{
 				{
-					Name:                 sourceClusterName,
-					ConnectionParameters: map[string]string{"host": host, "user": "postgres", "dbname": "postgres"},
+					Name: sourceClusterName,
+					ConnectionParameters: map[string]string{
+						"host":   host,
+						"user":   AppUser,
+						"dbname": AppDBName,
+					},
 					Password: &corev1.SecretKeySelector{
 						LocalObjectReference: corev1.LocalObjectReference{
-							Name: superUserSecretName,
+							Name: appUserSecretName,
 						},
 						Key: "password",
 					},
@@ -99,6 +108,7 @@ func ImportDatabaseMicroservice(
 // ImportDatabasesMonolith creates a new cluster spec importing from a sourceCluster
 // using the Monolith approach.
 // Imports all the specified `databaseNames` and `roles` from the source cluster
+// NOTE: enableSuperuserAccess needs to be enabled
 func ImportDatabasesMonolith(
 	namespace,
 	sourceClusterName,
@@ -112,8 +122,11 @@ func ImportDatabasesMonolith(
 		imageName = os.Getenv("POSTGRES_IMG")
 	}
 	storageClassName := os.Getenv("E2E_DEFAULT_STORAGE_CLASS")
-	host := fmt.Sprintf("%v-rw.%v.svc", sourceClusterName, namespace)
-	superUserSecretName := fmt.Sprintf("%v-superuser", sourceClusterName)
+	host, err := GetHostName(namespace, sourceClusterName, env)
+	if err != nil {
+		return nil, err
+	}
+	superUserSecretName := sourceClusterName + apiv1.SuperUserSecretSuffix
 	targetCluster := &apiv1.Cluster{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      importedClusterName,
@@ -143,8 +156,12 @@ func ImportDatabasesMonolith(
 			},
 			ExternalClusters: []apiv1.ExternalCluster{
 				{
-					Name:                 sourceClusterName,
-					ConnectionParameters: map[string]string{"host": host, "user": "postgres", "dbname": "postgres"},
+					Name: sourceClusterName,
+					ConnectionParameters: map[string]string{
+						"host":   host,
+						"user":   PostgresUser,
+						"dbname": PostgresDBName,
+					},
 					Password: &corev1.SecretKeySelector{
 						LocalObjectReference: corev1.LocalObjectReference{
 							Name: superUserSecretName,
