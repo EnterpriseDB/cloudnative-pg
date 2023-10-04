@@ -1448,7 +1448,7 @@ func AssertClusterRestoreWithApplicationDB(namespace, restoreClusterFile, tableN
 
 	By("checking the restored cluster with pre-defined app password connectable", func() {
 		// Get the app user password from the auto generated -app secret
-		const suppliedAppUserPassword = "4ls054f3"        // NOSONAR
+		const suppliedAppUserPassword = "4ls054f3"
 		const secretName = "postgresql-user-supplied-app" //nolint:gosec
 		AssertApplicationDatabaseConnection(
 			namespace,

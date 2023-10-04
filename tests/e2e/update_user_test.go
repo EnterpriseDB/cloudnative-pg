@@ -62,8 +62,8 @@ var _ = Describe("Update user and superuser password", Label(tests.LabelServiceC
 		host, err := testsUtils.GetHostName(namespace, clusterName, env)
 		Expect(err).ToNot(HaveOccurred())
 
-		var appSecretName = clusterName + apiv1.ApplicationUserSecretSuffix
-		var superUserSecretName = clusterName + apiv1.SuperUserSecretSuffix
+		appSecretName := clusterName + apiv1.ApplicationUserSecretSuffix
+		superUserSecretName := clusterName + apiv1.SuperUserSecretSuffix
 
 		By("update user application password", func() {
 			const newPassword = "eeh2Zahohx" //nolint:gosec
@@ -143,7 +143,7 @@ var _ = Describe("Enable superuser password", Label(tests.LabelServiceConnectivi
 		Expect(err).ToNot(HaveOccurred())
 		AssertCreateCluster(namespace, clusterName, sampleFile, env)
 
-		var secretName = clusterName + apiv1.SuperUserSecretSuffix
+		secretName := clusterName + apiv1.SuperUserSecretSuffix
 		var secret corev1.Secret
 		namespacedName := types.NamespacedName{
 			Namespace: namespace,
@@ -192,6 +192,7 @@ var _ = Describe("Enable superuser password", Label(tests.LabelServiceConnectivi
 			Expect(err).ToNot(HaveOccurred())
 			superUser, superUserPass, err := testsUtils.GetCredentials(clusterName, namespace,
 				apiv1.SuperUserSecretSuffix, env)
+			Expect(err).ToNot(HaveOccurred())
 			AssertConnection(host, superUser, testsUtils.PostgresDBName, superUserPass, *psqlClientPod, 60, env)
 		})
 
