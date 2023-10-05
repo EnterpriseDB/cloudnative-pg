@@ -1414,46 +1414,53 @@ func AssertClusterRestoreWithApplicationDB(namespace, restoreClusterFile, tableN
 		AssertClusterIsReady(namespace, restoredClusterName, testTimeouts[testsUtils.ClusterIsReadySlow], env)
 
 		// Test data should be present on restored primary
-		primary := restoredClusterName + "-1"
 		AssertDataExpectedCount(namespace, restoredClusterName, tableName, 2, pod)
-
-		// Restored primary should be on timeline 2
-		out, _, err := env.ExecQueryInInstancePod(
-			testsUtils.PodLocator{
-				Namespace: namespace,
-				PodName:   primary,
-			},
-			testsUtils.DatabaseName("app"),
-			"select substring(pg_walfile_name(pg_current_wal_lsn()), 1, 8)")
-		Expect(strings.Trim(out, "\n"), err).To(Equal("00000002"))
-
-		// Restored standby should be attached to restored primary
-		AssertClusterStandbysAreStreaming(namespace, restoredClusterName, 120)
 	})
 
+	// Gather connection parameters
+	host, err := testsUtils.GetHostName(namespace, restoredClusterName, env)
+	Expect(err).ToNot(HaveOccurred())
+	appUser, appUserPass, err := testsUtils.GetCredentials(restoredClusterName, namespace,
+		apiv1.ApplicationUserSecretSuffix, env)
+	Expect(err).ToNot(HaveOccurred())
+	secretName := restoredClusterName + apiv1.ApplicationUserSecretSuffix
+
+	By("Ensuring the restored cluster is on timeline 2", func() {
+		out, _, err := testsUtils.RunQueryFromPod(
+			psqlClientPod,
+			host,
+			testsUtils.AppDBName,
+			appUser,
+			appUserPass,
+			"select substring(pg_walfile_name(pg_current_wal_lsn()), 1, 8)",
+			env,
+		)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(strings.Trim(out, "\n"), err).To(Equal("00000002"))
+	})
+
+	// Restored standby should be attached to restored primary
+	AssertClusterStandbysAreStreaming(namespace, restoredClusterName, 120)
+
 	By("checking the restored cluster with pre-defined app password connectable", func() {
-		// Get the app user password from the auto generated -app secret
-		const suppliedAppUserPassword = "4ls054f3"
-		const secretName = "postgresql-user-supplied-app" //nolint:gosec
 		AssertApplicationDatabaseConnection(
 			namespace,
 			restoredClusterName,
-			"appuser",
-			"appdb",
-			suppliedAppUserPassword,
+			appUser,
+			testsUtils.AppDBName,
+			appUserPass,
 			secretName,
 			pod)
 	})
 
 	By("update user application password for restored cluster and verify connectivity", func() {
-		const secretName = "postgresql-user-supplied-app" //nolint:gosec
-		const newPassword = "eeh2Zahohx"                  //nolint:gosec
+		const newPassword = "eeh2Zahohx" //nolint:gosec
 		AssertUpdateSecret("password", newPassword, secretName, namespace, restoredClusterName, 30, env)
 		AssertApplicationDatabaseConnection(
 			namespace,
 			restoredClusterName,
-			"appuser",
-			"appdb",
+			appUser,
+			testsUtils.AppDBName,
 			newPassword,
 			secretName,
 			pod)
@@ -1621,30 +1628,29 @@ func AssertSuspendScheduleBackups(namespace, scheduledBackupName string) {
 }
 
 func AssertClusterWasRestoredWithPITRAndApplicationDB(namespace, clusterName, tableName, lsn string, pod *corev1.Pod) {
-	primaryInfo := &corev1.Pod{}
-	var err error
+	// We give more time than the usual 600s, since the recovery is slower
+	AssertClusterIsReady(namespace, clusterName, testTimeouts[testsUtils.ClusterIsReadySlow], env)
+
+	// Gather the recovered cluster primary
+	primaryInfo, err := env.GetClusterPrimary(namespace, clusterName)
+	Expect(err).ToNot(HaveOccurred())
 	secretName := clusterName + apiv1.ApplicationUserSecretSuffix
 
-	By("restoring a backup cluster with PITR in a new cluster", func() {
-		// We give more time than the usual 600s, since the recovery is slower
-		AssertClusterIsReady(namespace, clusterName, testTimeouts[testsUtils.ClusterIsReadySlow], env)
+	// Gather connection parameters
+	host, err := testsUtils.GetHostName(namespace, clusterName, env)
+	Expect(err).ToNot(HaveOccurred())
+	appUser, appUserPass, err := testsUtils.GetCredentials(clusterName, namespace, apiv1.ApplicationUserSecretSuffix, env)
+	Expect(err).ToNot(HaveOccurred())
 
-		primaryInfo, err = env.GetClusterPrimary(namespace, clusterName)
-		Expect(err).ToNot(HaveOccurred())
-
+	By("Ensuring the restored cluster is on timeline 3", func() {
 		// Restored primary should be on timeline 3
-		query := "select substring(pg_walfile_name(pg_current_wal_lsn()), 1, 8)"
-		host, err := testsUtils.GetHostName(namespace, clusterName, env)
-		Expect(err).ToNot(HaveOccurred())
-		appUser, appUserPass, err := testsUtils.GetCredentials(clusterName, namespace, apiv1.ApplicationUserSecretSuffix, env)
-		Expect(err).ToNot(HaveOccurred())
 		stdOut, _, err := testsUtils.RunQueryFromPod(
 			pod,
 			host,
 			testsUtils.AppDBName,
 			appUser,
 			appUserPass,
-			query,
+			"select substring(pg_walfile_name(pg_current_wal_lsn()), 1, 8)",
 			env,
 		)
 		Expect(err).ToNot(HaveOccurred())
@@ -1663,9 +1669,9 @@ func AssertClusterWasRestoredWithPITRAndApplicationDB(namespace, clusterName, ta
 		AssertApplicationDatabaseConnection(
 			namespace,
 			clusterName,
-			"appuser",
-			"appdb",
-			"",
+			appUser,
+			testsUtils.AppDBName,
+			appUserPass,
 			secretName,
 			pod)
 	})
@@ -1676,8 +1682,8 @@ func AssertClusterWasRestoredWithPITRAndApplicationDB(namespace, clusterName, ta
 		AssertApplicationDatabaseConnection(
 			namespace,
 			clusterName,
-			"appuser",
-			"appdb",
+			appUser,
+			testsUtils.AppDBName,
 			newPassword,
 			secretName,
 			pod)
@@ -1695,7 +1701,6 @@ func AssertClusterWasRestoredWithPITR(namespace, clusterName, tableName, lsn str
 		Expect(err).ToNot(HaveOccurred())
 
 		// Restored primary should be on timeline 3
-		query := "select substring(pg_walfile_name(pg_current_wal_lsn()), 1, 8)"
 		host, err := testsUtils.GetHostName(namespace, clusterName, env)
 		Expect(err).ToNot(HaveOccurred())
 		appUser, appUserPass, err := testsUtils.GetCredentials(clusterName, namespace, apiv1.ApplicationUserSecretSuffix, env)
@@ -1706,7 +1711,7 @@ func AssertClusterWasRestoredWithPITR(namespace, clusterName, tableName, lsn str
 			testsUtils.AppDBName,
 			appUser,
 			appUserPass,
-			query,
+			"select substring(pg_walfile_name(pg_current_wal_lsn()), 1, 8)",
 			env,
 		)
 		Expect(err).ToNot(HaveOccurred())
