@@ -1306,22 +1306,6 @@ func AssertSSLVerifyFullDBConnectionFromAppPod(namespace string, clusterName str
 	})
 }
 
-func AssertSetupPgBasebackup(namespace, srcClusterName, srcCluster string) string {
-	// Create the src Cluster
-	AssertCreateCluster(namespace, srcClusterName, srcCluster, env)
-
-	// Get Current Primary Pod
-	primaryPod, err := env.GetClusterPrimary(namespace, srcClusterName)
-	Expect(err).ToNot(HaveOccurred())
-
-	// Create test Data in the app database
-	query := "CREATE TABLE IF NOT EXISTS to_bootstrap AS VALUES (1),(2);"
-	_, _, err = testsUtils.RunQueryFromPod(primaryPod, testsUtils.PGLocalSocketDir,
-		"app", "postgres", "''", query, env)
-	Expect(err).ToNot(HaveOccurred())
-	return primaryPod.GetName()
-}
-
 func AssertCreateSASTokenCredentials(namespace string, id string, key string) {
 	// Adding 24 hours to the current time
 	date := time.Now().UTC().Add(time.Hour * 24)
