@@ -245,40 +245,35 @@ func assertTableAndDataOnImportedCluster(
 	importedClusterName string,
 ) {
 	By("verifying presence of table and data from source in imported cluster", func() {
-		appUser, appUserPassword, err := testsUtils.GetCredentials(importedClusterName,
-			namespace, apiv1.ApplicationUserSecretSuffix, env)
-		Expect(err).ToNot(HaveOccurred())
-		host, err := testsUtils.GetHostName(namespace, importedClusterName, env)
+		pod, err := env.GetClusterPrimary(namespace, importedClusterName)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verifying imported table has owner app user", func() {
 			queryImported := fmt.Sprintf(
 				"select * from pg_tables where tablename = '%v' and tableowner = '%v'",
 				tableName,
-				appUser,
+				testsUtils.AppUser,
 			)
-			out, _, err := testsUtils.RunQueryFromPod(
-				psqlClientPod,
-				host,
+			out, _, err := env.ExecCommandWithPsqlClient(
+				namespace,
+				importedClusterName,
+				pod,
+				apiv1.ApplicationUserSecretSuffix,
 				testsUtils.AppDBName,
-				appUser,
-				appUserPassword,
 				queryImported,
-				env,
 			)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(strings.Contains(out, tableName), err).Should(BeTrue())
 		})
 
 		By("verifying the user named 'micro' on source is not in imported database", func() {
-			outUser, _, err := testsUtils.RunQueryFromPod(
-				psqlClientPod,
-				host,
+			outUser, _, err := env.ExecCommandWithPsqlClient(
+				namespace,
+				importedClusterName,
+				pod,
+				apiv1.ApplicationUserSecretSuffix,
 				testsUtils.AppDBName,
-				appUser,
-				appUserPassword,
 				"\\du",
-				env,
 			)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(strings.Contains(outUser, "micro"), err).Should(BeFalse())
@@ -321,21 +316,15 @@ func assertImportRenamesSelectedDatabase(
 	})
 
 	By(fmt.Sprintf("creating table '%s' and insert records on selected db %v", tableName, dbToImport), func() {
-		appUser, appUserPassword, err := testsUtils.GetCredentials(
-			clusterName, namespace, apiv1.ApplicationUserSecretSuffix, env)
-		Expect(err).ToNot(HaveOccurred())
-		host, err := testsUtils.GetHostName(namespace, clusterName, env)
-		Expect(err).ToNot(HaveOccurred())
 		// create a table with two records
 		query := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s AS VALUES (1),(2);", tableName)
-		_, _, err = testsUtils.RunQueryFromPod(
-			psqlClientPod,
-			host,
+		_, _, err := env.ExecCommandWithPsqlClient(
+			namespace,
+			clusterName,
+			primaryPod,
+			apiv1.ApplicationUserSecretSuffix,
 			dbToImport,
-			appUser,
-			appUserPassword,
 			query,
-			env,
 		)
 		Expect(err).ToNot(HaveOccurred())
 	})
@@ -353,19 +342,15 @@ func assertImportRenamesSelectedDatabase(
 	AssertDataExpectedCount(namespace, importedClusterName, tableName, 2, psqlClientPod)
 
 	By("verifying that only 'app' DB exists in the imported cluster", func() {
-		appUser, appUserPassword, err := testsUtils.GetCredentials(
-			importedClusterName, namespace, apiv1.ApplicationUserSecretSuffix, env)
+		importedPrimaryPod, err := env.GetClusterPrimary(namespace, importedClusterName)
 		Expect(err).ToNot(HaveOccurred())
-		host, err := testsUtils.GetHostName(namespace, importedClusterName, env)
-		Expect(err).ToNot(HaveOccurred())
-		out, _, err := testsUtils.RunQueryFromPod(
-			psqlClientPod,
-			host,
+		out, _, err := env.ExecCommandWithPsqlClient(
+			namespace,
+			clusterName,
+			importedPrimaryPod,
+			apiv1.ApplicationUserSecretSuffix,
 			testsUtils.AppDBName,
-			appUser,
-			appUserPassword,
 			"\\l",
-			env,
 		)
 		Expect(err).ToNot(HaveOccurred(), err)
 		Expect(strings.Contains(out, "db2"), err).Should(BeFalse())

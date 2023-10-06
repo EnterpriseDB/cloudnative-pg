@@ -150,20 +150,16 @@ func assertFastSwitchover(namespace, sampleFile, clusterName, webTestFile, webTe
 			", PRIMARY KEY (id)" +
 			")"
 
-		host, err := utils.GetHostName(namespace, clusterName, env)
-		Expect(err).ToNot(HaveOccurred())
-		appUser, appUserPass, err := utils.GetCredentials(clusterName, namespace,
-			apiv1.ApplicationUserSecretSuffix, env)
+		primaryPod, err := env.GetClusterPrimary(namespace, clusterName)
 		Expect(err).ToNot(HaveOccurred())
 
-		_, _, err = utils.RunQueryFromPod(
-			psqlClientPod,
-			host,
+		_, _, err = env.ExecCommandWithPsqlClient(
+			namespace,
+			clusterName,
+			primaryPod,
+			apiv1.ApplicationUserSecretSuffix,
 			utils.AppDBName,
-			appUser,
-			appUserPass,
 			query,
-			env,
 		)
 		Expect(err).ToNot(HaveOccurred())
 	})
