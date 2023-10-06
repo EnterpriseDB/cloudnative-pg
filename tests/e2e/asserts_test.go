@@ -1361,9 +1361,25 @@ func AssertClusterAsyncReplica(namespace, sourceClusterFile, restoreClusterFile,
 		AssertClusterIsReady(namespace, restoredClusterName, testTimeouts[testsUtils.ClusterIsReadySlow], env)
 
 		// Test data should be present on restored primary
+		// NOTE: We use the credentials from the `source-cluster` for the psql connection
+		// given that this is a replica cluster
 		restoredPrimary, err := env.GetClusterPrimary(namespace, restoredClusterName)
 		Expect(err).ToNot(HaveOccurred())
-		AssertDataExpectedCount(namespace, restoredClusterName, tableName, 2, restoredPrimary)
+		appUser, appUserPass, err := testsUtils.GetCredentials(
+			sourceClusterName, namespace, apiv1.ApplicationUserSecretSuffix, env)
+		Expect(err).ToNot(HaveOccurred())
+		rwService := testsUtils.CreateServiceFQDN(namespace, testsUtils.GetReadWriteServiceName(restoredClusterName))
+		query := "SELECT count(*) FROM " + tableName
+		out, _, err := testsUtils.RunQueryFromPod(
+			restoredPrimary,
+			rwService,
+			testsUtils.AppDBName,
+			appUser,
+			appUserPass,
+			query,
+			env,
+		)
+		Expect(strings.Trim(out, "\n"), err).To(BeEquivalentTo("2"))
 
 		// Insert new data in the source cluster
 		insertRecordIntoTable(namespace, sourceClusterName, tableName, 3, pod)
