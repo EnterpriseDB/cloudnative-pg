@@ -2808,6 +2808,20 @@ Default: false.</p>
    <p>Enable or disable the <code>PodMonitor</code></p>
 </td>
 </tr>
+<tr><td><code>podMonitorMetricRelabelings</code><br/>
+<i>[]*github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1.RelabelConfig</i>
+</td>
+<td>
+   <p>The list of metric relabelings for the <code>PodMonitor</code>. Applied to samples before ingestion.</p>
+</td>
+</tr>
+<tr><td><code>podMonitorRelabelings</code><br/>
+<i>[]*github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1.RelabelConfig</i>
+</td>
+<td>
+   <p>The list of relabelings for the <code>PodMonitor</code>. Applied to samples before scraping.</p>
+</td>
+</tr>
 </tbody>
 </table>
 
@@ -3109,6 +3123,20 @@ part for now.</p>
 </td>
 <td>
    <p>Enable or disable the <code>PodMonitor</code></p>
+</td>
+</tr>
+<tr><td><code>podMonitorMetricRelabelings</code><br/>
+<i>[]*github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1.RelabelConfig</i>
+</td>
+<td>
+   <p>The list of metric relabelings for the <code>PodMonitor</code>. Applied to samples before ingestion.</p>
+</td>
+</tr>
+<tr><td><code>podMonitorRelabelings</code><br/>
+<i>[]*github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1.RelabelConfig</i>
+</td>
+<td>
+   <p>The list of relabelings for the <code>PodMonitor</code>. Applied to samples before scraping.</p>
 </td>
 </tr>
 </tbody>
