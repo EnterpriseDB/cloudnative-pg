@@ -954,9 +954,35 @@ func (r *ClusterReconciler) createPrimaryInstance(
 		return ctrl.Result{}, fmt.Errorf("cannot generate node serial: %w", err)
 	}
 
+	var backup *apiv1.Backup
+	if cluster.Spec.Bootstrap != nil &&
+		cluster.Spec.Bootstrap.Recovery != nil &&
+		cluster.Spec.Bootstrap.Recovery.Backup != nil {
+		backup, err = r.getOriginBackup(ctx, cluster)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if backup == nil {
+			contextLogger.Info("Missing backup object, can't continue full recovery",
+				"backup", cluster.Spec.Bootstrap.Recovery.Backup)
+			return ctrl.Result{
+				Requeue:      true,
+				RequeueAfter: time.Minute,
+			}, nil
+		}
+		if backup.Status.Phase != apiv1.BackupPhaseCompleted {
+			contextLogger.Info("The source backup object is not completed, can't continue full recovery",
+				"backup", cluster.Spec.Bootstrap.Recovery.Backup,
+				"backupPhase", backup.Status.Phase)
+			return ctrl.Result{
+				Requeue:      true,
+				RequeueAfter: time.Minute,
+			}, nil
+		}
+	}
+
 	// Get the source storage from where to create the primary instance.
-	// We don't consider any pre-existing backups here
-	candidateSource := persistentvolumeclaim.GetCandidateStorageSourceForPrimary(cluster)
+	candidateSource := persistentvolumeclaim.GetCandidateStorageSourceForPrimary(cluster, backup)
 
 	if err := persistentvolumeclaim.CreateInstancePVCs(
 		ctx,
@@ -973,23 +999,8 @@ func (r *ClusterReconciler) createPrimaryInstance(
 
 	switch {
 	case cluster.Spec.Bootstrap != nil && cluster.Spec.Bootstrap.Recovery != nil:
-		var backup *apiv1.Backup
-		if cluster.Spec.Bootstrap.Recovery.Backup != nil {
-			backup, err = r.getOriginBackup(ctx, cluster)
-			if err != nil {
-				return ctrl.Result{}, err
-			}
-			if backup == nil {
-				contextLogger.Info("Missing backup object, can't continue full recovery",
-					"backup", cluster.Spec.Bootstrap.Recovery.Backup)
-				return ctrl.Result{
-					Requeue:      true,
-					RequeueAfter: time.Minute,
-				}, nil
-			}
-		}
-
-		if cluster.Spec.Bootstrap.Recovery.VolumeSnapshots != nil {
+		if cluster.Spec.Bootstrap.Recovery.VolumeSnapshots != nil ||
+			backup != nil && backup.IsCompletedVolumeSnapshot() {
 			r.Recorder.Event(cluster, "Normal", "CreatingInstance", "Primary instance (from volumeSnapshots)")
 			job = specs.CreatePrimaryJobViaRestoreSnapshot(*cluster, nodeSerial, backup)
 			break

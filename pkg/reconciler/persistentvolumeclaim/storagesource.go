@@ -59,7 +59,11 @@ func (source *StorageSource) ForRole(role utils.PVCRole) (*corev1.TypedLocalObje
 // to be used to create a primary PVC
 func GetCandidateStorageSourceForPrimary(
 	cluster *apiv1.Cluster,
+	backup *apiv1.Backup,
 ) *StorageSource {
+	if backup != nil {
+		return getCandidateSourceFromBackup(backup)
+	}
 	return getCandidateSourceFromClusterDefinition(cluster)
 }
 
@@ -131,25 +135,30 @@ func getCandidateSourceFromBackupList(ctx context.Context, backupList apiv1.Back
 		contextLogger.Debug("found a backup that is a valid storage source candidate",
 			"backupName", backup.Name)
 
-		result := &StorageSource{
-			DataSource: corev1.TypedLocalObjectReference{
-				APIGroup: ptr.To(volumesnapshot.GroupName),
-				Kind:     "VolumeSnapshot",
-				Name:     GetName(backup.Name, utils.PVCRolePgData),
-			},
-		}
-		if len(backup.Status.BackupSnapshotStatus.Elements) > 1 {
-			result.WALSource = &corev1.TypedLocalObjectReference{
-				APIGroup: ptr.To(volumesnapshot.GroupName),
-				Kind:     "VolumeSnapshot",
-				Name:     GetName(backup.Name, utils.PVCRolePgWal),
-			}
-		}
-
-		return result
+		return getCandidateSourceFromBackup(backup)
 	}
 
 	return nil
+}
+
+func getCandidateSourceFromBackup(backup *apiv1.Backup) *StorageSource {
+	result := &StorageSource{
+		DataSource: corev1.TypedLocalObjectReference{
+			APIGroup: ptr.To(volumesnapshot.GroupName),
+			Kind:     "VolumeSnapshot",
+			Name:     GetName(backup.Name, utils.PVCRolePgData),
+		},
+	}
+
+	if len(backup.Status.BackupSnapshotStatus.Elements) > 1 {
+		result.WALSource = &corev1.TypedLocalObjectReference{
+			APIGroup: ptr.To(volumesnapshot.GroupName),
+			Kind:     "VolumeSnapshot",
+			Name:     GetName(backup.Name, utils.PVCRolePgWal),
+		}
+	}
+
+	return result
 }
 
 // getCandidateSourceFromClusterDefinition gets a candidate storage source
