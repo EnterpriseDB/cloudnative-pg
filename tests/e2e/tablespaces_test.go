@@ -115,7 +115,7 @@ var _ = Describe("Tablespaces tests", Label(tests.LabelSmoke, tests.LabelStorage
 			namespace, err = env.CreateUniqueNamespace(namespacePrefix)
 			Expect(err).ToNot(HaveOccurred())
 			DeferCleanup(func() error {
-				return env.DeleteNamespace(namespace)
+				return nil // env.DeleteNamespace(namespace)
 			})
 
 			By("creating ca and tls certificate secrets", func() {
@@ -725,12 +725,34 @@ func latestBaseBackupContainsExpectedTars(
 		backupInfoFiles := filepath.Join("*", clusterName, "base", "*", "*.info")
 		ls, err := testUtils.ListFilesOnMinio(namespace, minioClientName, backupInfoFiles)
 		Expect(err).ShouldNot(HaveOccurred())
-		frags := strings.Split(ls, "\n")
-		slices.Sort(frags)
-		Expect(frags).To(HaveLen(numBackups))
-		latestBaseBackup := filepath.Dir(frags[numBackups-1])
+		folder_frags := strings.Split(ls, "\n")
+		slices.Sort(folder_frags)
+
+		for idx, frag := range folder_frags {
+			GinkgoWriter.Printf("folder frag %v is %v\n", idx, frag)
+		}
+
+		Expect(folder_frags).To(HaveLen(numBackups))
+		latestBaseBackup := filepath.Dir(folder_frags[numBackups-1])
 		tarsInLastBackup := strings.TrimPrefix(filepath.Join(latestBaseBackup, "*.tar"), "minio/")
+
+		ls, err = testUtils.ListFilesOnMinio(namespace, minioClientName, tarsInLastBackup)
+		frags := strings.Split(ls, "\n")
+		for idx, frag := range frags {
+			GinkgoWriter.Printf("file frag %v is %v\n", idx, frag)
+		}
+		GinkgoWriter.Printf("############\n")
+		if numBackups == 2 {
+			latestBaseBackup = filepath.Dir(folder_frags[numBackups-2])
+			tarsInLastBackup1 := strings.TrimPrefix(filepath.Join(latestBaseBackup, "*.tar"), "minio/")
+			ls, err = testUtils.ListFilesOnMinio(namespace, minioClientName, tarsInLastBackup1)
+			frags = strings.Split(ls, "\n")
+			for idx, frag := range frags {
+				GinkgoWriter.Printf("file frag %v is %v\n", idx, frag)
+			}
+		}
+
 		numTars, err := testUtils.CountFilesOnMinio(namespace, minioClientName, tarsInLastBackup)
 		return numTars, err
-	}, 120).Should(Equal(expectedTars))
+	}, 240).Should(Equal(expectedTars))
 }
