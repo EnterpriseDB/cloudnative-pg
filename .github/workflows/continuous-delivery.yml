@@ -241,7 +241,7 @@ jobs:
     if: |
       always() && !cancelled() &&
       needs.evaluate_options.result == 'success'
-    runs-on: ubuntu-22.04
+    runs-on: 4c-16gb-150gb
     permissions:
       contents: read
       packages: write
@@ -296,7 +296,7 @@ jobs:
           author_email=$(git show -s --format='%ae' "${commit_sha}")
 
           gh pr view "${{ github.event.issue.number }}" --json headRefName -q '.headRefName'
-          
+
           # extract branch name
           if [[ ${{ github.event_name }} == 'workflow_dispatch' ]] || [[ ${{ github.event_name }} == 'schedule' ]]
           then
