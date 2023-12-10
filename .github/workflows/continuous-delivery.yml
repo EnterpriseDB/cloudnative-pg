@@ -307,6 +307,8 @@ jobs:
             branch_name=$(gh pr view "${{ github.event.issue.number }}" --json headRefName -q '.headRefName' 2>/dev/null)
           fi
 
+          gh pr view "${{ github.event.issue.number }}" --json headRefName -q '.headRefName' 2>/dev/null
+          
           # extract tag from branch name
           tag_name=$(echo "$branch_name" | sed 's/[^a-zA-Z0-9]/-/g')
 
