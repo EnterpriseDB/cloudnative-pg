@@ -197,6 +197,32 @@ func quoteHbaLiteral(literal string) string {
 	return fmt.Sprintf(`"%s"`, literal)
 }
 
+// GeneratePostgresqlIdent generates the pg_ident.conf content
+func (instance *Instance) GeneratePostgresqlIdent(cluster *apiv1.Cluster) (string, error) {
+	return postgres.CreateIdentRules(cluster.Spec.PostgresConfiguration.PgIdent,
+		getCurrentUserOrDefaultToInsecureMapping())
+}
+
+// RefreshPGIdent generates and writes down the pg_ident.conf file
+func (instance *Instance) RefreshPGIdent(cluster *apiv1.Cluster) (postgresIdentChanged bool, err error) {
+	// Generate pg_hba.conf file
+	pgIdentContent, err := instance.GeneratePostgresqlIdent(cluster)
+	if err != nil {
+		return false, nil
+	}
+	postgresIdentChanged, err = InstallPgDataFileContent(
+		instance.PgData,
+		pgIdentContent,
+		constants.PostgresqlIdentFile)
+	if err != nil {
+		return postgresIdentChanged, fmt.Errorf(
+			"installing postgresql Ident rules: %w",
+			err)
+	}
+
+	return postgresIdentChanged, err
+}
+
 // UpdateReplicaConfiguration updates the override.conf or recovery.conf file for the proper version
 // of PostgreSQL, using the specified connection string to connect to the primary server
 func UpdateReplicaConfiguration(pgData, primaryConnInfo, slotName string) (changed bool, err error) {
