@@ -16,6 +16,7 @@ limitations under the License.
 package e2e
 
 import (
+	"fmt"
 	"github.com/blang/semver"
 
 	"github.com/cloudnative-pg/cloudnative-pg/tests"
@@ -165,7 +166,8 @@ var _ = Describe("Upgrade Paths on OpenShift", Label(tests.LabelUpgrade), Ordere
 
 	It("stable-v1 to alpha, currently version 1.22", func() {
 		if ocpVersion.GT(ocp412) {
-			Skip("This test runs only on OCP 4.12 or lower")
+			Skip(fmt.Sprintf("This test runs only on OCP 4.12 or lower, current version is %s",
+				ocpVersion.String()))
 		}
 		DeferCleanup(cleanupOpenshift)
 		applyUpgrade("stable-v1", "alpha")
