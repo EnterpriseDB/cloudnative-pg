@@ -18,7 +18,6 @@ package e2e
 import (
 	"fmt"
 	"github.com/blang/semver"
-
 	"github.com/cloudnative-pg/cloudnative-pg/tests"
 	testsUtils "github.com/cloudnative-pg/cloudnative-pg/tests/utils"
 
@@ -35,7 +34,7 @@ var _ = Describe("Upgrade Paths on OpenShift", Label(tests.LabelUpgrade), Ordere
 		sampleFile        = fixturesDir + "/base/cluster-storage-class.yaml.template"
 	)
 
-	var ocp412 semver.Version
+	var ocp413 semver.Version
 	var ocpVersion semver.Version
 	var err error
 
@@ -50,7 +49,7 @@ var _ = Describe("Upgrade Paths on OpenShift", Label(tests.LabelUpgrade), Ordere
 			Skip("This test case is only applicable on OpenShift clusters")
 		}
 		// Setup OpenShift Versions
-		ocp412, err = semver.Make("4.12.0")
+		ocp413, err = semver.Make("4.13.0")
 		Expect(err).ToNot(HaveOccurred())
 		// Get current OpenShift Versions
 		ocpVersion, err = testsUtils.GetOpenshiftVersion(env)
@@ -122,8 +121,11 @@ var _ = Describe("Upgrade Paths on OpenShift", Label(tests.LabelUpgrade), Ordere
 		// Apply a subscription in the openshift-operators namespace.
 		// This should create the operator
 		By("Applying the initial subscription", func() {
-			err := testsUtils.CreateSubscription(env, initialSubscription)
-			Expect(err).ToNot(HaveOccurred())
+			if initialSubscription != "stable-v1" {
+				err := testsUtils.CreateSubscription(env, initialSubscription)
+				Expect(err).ToNot(HaveOccurred())
+			}
+
 			AssertOperatorIsReady()
 		})
 
@@ -164,10 +166,9 @@ var _ = Describe("Upgrade Paths on OpenShift", Label(tests.LabelUpgrade), Ordere
 		assertClusterIsAligned(namespace, clusterName)
 	}
 
-	It("stable-v1 to alpha, currently version 1.22", func() {
-		if ocpVersion.GT(ocp412) {
-			Skip(fmt.Sprintf("This test runs only on OCP 4.12 or lower, current version is %s",
-				ocpVersion.String()))
+	It(fmt.Sprintf("stable-v1 to alpha, currently version 1.22, ocp version %s", ocpVersion.String()), func() {
+		if ocpVersion.GT(ocp413) {
+			Skip("This test runs only on OCP 4.12 or lower")
 		}
 		DeferCleanup(cleanupOpenshift)
 		applyUpgrade("stable-v1", "alpha")
