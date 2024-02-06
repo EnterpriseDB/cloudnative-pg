@@ -39,7 +39,6 @@ var _ = Describe("Upgrade Paths on OpenShift", Label(tests.LabelUpgrade), Ordere
 	var err error
 
 	BeforeAll(func() {
-		Skip("Disable until a new fix is compatible")
 	})
 
 	BeforeEach(func() {
