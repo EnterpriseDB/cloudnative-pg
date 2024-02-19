@@ -17,6 +17,7 @@ package e2e
 
 import (
 	"fmt"
+
 	"github.com/blang/semver"
 	"github.com/cloudnative-pg/cloudnative-pg/tests"
 	testsUtils "github.com/cloudnative-pg/cloudnative-pg/tests/utils"
@@ -166,9 +167,9 @@ var _ = Describe("Upgrade Paths on OpenShift", Label(tests.LabelUpgrade), Ordere
 		assertClusterIsAligned(namespace, clusterName)
 	}
 
-	It(fmt.Sprintf("stable-v1 to alpha, currently version 1.22, ocp version %s", ocpVersion.String()), func() {
+	It("stable-v1 to alpha, currently version 1.22", func() {
 		if ocpVersion.GT(ocp413) {
-			Skip("This test runs only on OCP 4.12 or lower")
+			Skip(fmt.Sprintf("This test runs only on OCP 4.12 or lower, current ocp version is %s", ocpVersion.String()))
 		}
 		DeferCleanup(cleanupOpenshift)
 		applyUpgrade("stable-v1", "alpha")
