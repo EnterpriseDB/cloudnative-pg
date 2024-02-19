@@ -130,10 +130,14 @@ var _ = Describe("Upgrade Paths on OpenShift", Label(tests.LabelUpgrade), Ordere
 			AssertOperatorIsReady()
 		})
 
+		subScription, err := testsUtils.GetSubscription(env)
+		GinkgoWriter.Printf("subScription is %v", subScription)
 		// Gather the version and semantic Versions of the operator
 		currentVersion, err := testsUtils.GetSubscriptionVersion(env)
+		GinkgoWriter.Printf("currentVersion is %v", currentVersion)
 		Expect(err).ToNot(HaveOccurred())
 		currentSemVersion, err := semver.Make(currentVersion)
+		GinkgoWriter.Printf("currentSemVersion is %v", currentSemVersion)
 		Expect(err).ToNot(HaveOccurred())
 		newPolicyRelease, err := semver.Make("1.16.0")
 		Expect(err).ToNot(HaveOccurred())
@@ -155,6 +159,8 @@ var _ = Describe("Upgrade Paths on OpenShift", Label(tests.LabelUpgrade), Ordere
 			// Apply the new subscription to upgrade to a new version of the operator
 			err = testsUtils.UpgradeSubscription(env, upgradeSubscription)
 			Expect(err).ToNot(HaveOccurred())
+			subScription, err = testsUtils.GetSubscription(env)
+			GinkgoWriter.Printf("subScription is %v", subScription)
 			Eventually(func() (string, error) {
 				return testsUtils.GetSubscriptionVersion(env)
 			}, 300).
