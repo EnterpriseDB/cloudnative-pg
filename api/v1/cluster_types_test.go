@@ -781,7 +781,7 @@ var _ = Describe("Barman Endpoint CA for replica cluster", func() {
 		Spec: ClusterSpec{
 			ReplicaCluster: &ReplicaClusterConfiguration{
 				Source:  "testSource",
-				Enabled: true,
+				Enabled: ptr.To(true),
 			},
 		},
 	}
@@ -810,7 +810,7 @@ var _ = Describe("Barman Endpoint CA for replica cluster", func() {
 			},
 			ReplicaCluster: &ReplicaClusterConfiguration{
 				Source:  "testReplica",
-				Enabled: true,
+				Enabled: ptr.To(true),
 			},
 		},
 	}
@@ -1001,7 +1001,7 @@ var _ = Describe("Cluster ShouldRecoveryCreateApplicationDatabase", func() {
 	})
 
 	It("should return false if the cluster is a replica", func() {
-		cluster.Spec.ReplicaCluster = &ReplicaClusterConfiguration{Enabled: true}
+		cluster.Spec.ReplicaCluster = &ReplicaClusterConfiguration{Enabled: ptr.To(true)}
 		result := cluster.ShouldRecoveryCreateApplicationDatabase()
 		Expect(result).To(BeFalse())
 	})
@@ -1231,7 +1231,7 @@ var _ = Describe("ShouldPromoteFromReplicaCluster", func() {
 		cluster := &Cluster{
 			Spec: ClusterSpec{
 				ReplicaCluster: &ReplicaClusterConfiguration{
-					Enabled:        true,
+					Enabled:        ptr.To(true),
 					PromotionToken: "ABC",
 				},
 			},
@@ -1243,7 +1243,7 @@ var _ = Describe("ShouldPromoteFromReplicaCluster", func() {
 		cluster := &Cluster{
 			Spec: ClusterSpec{
 				ReplicaCluster: &ReplicaClusterConfiguration{
-					Enabled: true,
+					Enabled: ptr.To(true),
 				},
 			},
 		}
@@ -1263,7 +1263,7 @@ var _ = Describe("ShouldPromoteFromReplicaCluster", func() {
 		cluster := &Cluster{
 			Spec: ClusterSpec{
 				ReplicaCluster: &ReplicaClusterConfiguration{
-					Enabled:        true,
+					Enabled:        ptr.To(true),
 					PromotionToken: "ABC",
 				},
 			},
@@ -1278,7 +1278,7 @@ var _ = Describe("ShouldPromoteFromReplicaCluster", func() {
 		cluster := &Cluster{
 			Spec: ClusterSpec{
 				ReplicaCluster: &ReplicaClusterConfiguration{
-					Enabled:        true,
+					Enabled:        ptr.To(true),
 					PromotionToken: "ABC",
 				},
 			},
