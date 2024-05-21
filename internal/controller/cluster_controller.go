@@ -19,8 +19,6 @@ package controller
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"reflect"
@@ -252,7 +250,12 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, cluster *apiv1.Cluste
 	}
 
 	// Store in the context the TLS configuration required communicating with the Pods
-	tlsConfig, err := newTLSConfigFromCluster(ctx, cluster, r.Client)
+	tlsConfig, err := certs.NewTLSFromSecret(
+		ctx,
+		r.Client,
+		cluster.GetServerCASecretObjectKey(),
+		cluster.GetServiceReadWriteName(),
+	)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -402,29 +405,6 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, cluster *apiv1.Cluste
 	// Calls post-reconcile hooks
 	hookResult := postReconcilePluginHooks(ctx, cluster, cluster)
 	return hookResult.Result, hookResult.Err
-}
-
-func newTLSConfigFromCluster(ctx context.Context, cluster *apiv1.Cluster, c client.Client) (*tls.Config, error) {
-	secret := &corev1.Secret{}
-	err := c.Get(ctx, client.ObjectKey{Namespace: cluster.Namespace, Name: cluster.GetServerCASecretName()}, secret)
-	if err != nil {
-		return nil, fmt.Errorf("while getting secret %s: %w", cluster.GetServerCASecretName(), err)
-	}
-
-	caCertificate, ok := secret.Data[certs.CACertKey]
-	if !ok {
-		return nil, fmt.Errorf("missing %s entry in secret %s", certs.CACertKey, cluster.GetServerCASecretName())
-	}
-
-	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(caCertificate)
-	tlsConfig := tls.Config{
-		MinVersion: tls.VersionTLS13,
-		ServerName: cluster.GetServiceReadWriteName(),
-		RootCAs:    caCertPool,
-	}
-
-	return &tlsConfig, nil
 }
 
 func (r *ClusterReconciler) handleSwitchover(
