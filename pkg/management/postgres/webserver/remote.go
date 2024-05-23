@@ -92,7 +92,7 @@ func NewRemoteWebServer(
 		ReadHeaderTimeout: DefaultReadHeaderTimeout,
 	}
 
-	if instance.StatusTLS {
+	if instance.StatusPortTLS {
 		server.TLSConfig = &tls.Config{
 			MinVersion: tls.VersionTLS13,
 			GetCertificate: func(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
