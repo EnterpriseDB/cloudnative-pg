@@ -53,7 +53,12 @@ var _ = Describe("Synchronous Replicas", Label(tests.LabelReplication), func() {
 			}
 			return env.DeleteNamespace(namespace)
 		})
-
+		JustAfterEach(func() {
+			utils.CleanupClusterLogs(CurrentSpecReport().Failed(), namespace)
+			if CurrentSpecReport().Failed() {
+				env.DumpNamespaceObjects(namespace, "out/"+CurrentSpecReport().LeafNodeText+".log")
+			}
+		})
 		AssertCreateCluster(namespace, clusterName, sampleFile, env)
 
 		commandTimeout := time.Second * 10
@@ -153,7 +158,12 @@ var _ = Describe("Synchronous Replicas", Label(tests.LabelReplication), func() {
 			}
 			return env.DeleteNamespace(namespace)
 		})
-
+		JustAfterEach(func() {
+			utils.CleanupClusterLogs(CurrentSpecReport().Failed(), namespace)
+			if CurrentSpecReport().Failed() {
+				env.DumpNamespaceObjects(namespace, "out/"+CurrentSpecReport().LeafNodeText+".log")
+			}
+		})
 		AssertCreateCluster(namespace, clusterName, sampleFile, env)
 		AssertClusterIsReady(namespace, clusterName, 30, env)
 

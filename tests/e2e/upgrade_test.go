@@ -309,7 +309,12 @@ var _ = Describe("Upgrade", Label(tests.LabelUpgrade, tests.LabelNoOpenshift), O
 			env.DumpOperator(operatorNamespace,
 				"out/"+CurrentSpecReport().LeafNodeText+"operator.log")
 		}
-
+		JustAfterEach(func() {
+			testsUtils.CleanupClusterLogs(CurrentSpecReport().Failed(), namespace)
+			if CurrentSpecReport().Failed() {
+				env.DumpNamespaceObjects(namespace, "out/"+CurrentSpecReport().LeafNodeText+".log")
+			}
+		})
 		err := env.DeleteNamespace(namespace)
 		if err != nil {
 			return fmt.Errorf("could not cleanup. Failed to delete namespace: %v", err)
@@ -644,7 +649,12 @@ var _ = Describe("Upgrade", Label(tests.LabelUpgrade, tests.LabelNoOpenshift), O
 			testsUtils.InstallLatestCNPGOperator(mostRecentTag, env)
 			upgradeNamespace := assertCreateNamespace(upgradeNamespacePrefix)
 			DeferCleanup(cleanupNamespace, upgradeNamespace)
-
+			JustAfterEach(func() {
+				testsUtils.CleanupClusterLogs(CurrentSpecReport().Failed(), upgradeNamespace)
+				if CurrentSpecReport().Failed() {
+					env.DumpNamespaceObjects(upgradeNamespace, "out/"+CurrentSpecReport().LeafNodeText+".log")
+				}
+			})
 			assertClustersWorkAfterOperatorUpgrade(upgradeNamespace, currentOperatorManifest)
 		})
 
@@ -662,6 +672,12 @@ var _ = Describe("Upgrade", Label(tests.LabelUpgrade, tests.LabelNoOpenshift), O
 
 			upgradeNamespace := assertCreateNamespace(upgradeNamespacePrefix)
 			DeferCleanup(cleanupNamespace, upgradeNamespace)
+			JustAfterEach(func() {
+				testsUtils.CleanupClusterLogs(CurrentSpecReport().Failed(), upgradeNamespace)
+				if CurrentSpecReport().Failed() {
+					env.DumpNamespaceObjects(upgradeNamespace, "out/"+CurrentSpecReport().LeafNodeText+".log")
+				}
+			})
 			assertClustersWorkAfterOperatorUpgrade(upgradeNamespace, currentOperatorManifest)
 			assertManagerRollout()
 		})
@@ -684,7 +700,12 @@ var _ = Describe("Upgrade", Label(tests.LabelUpgrade, tests.LabelNoOpenshift), O
 
 			upgradeNamespace := assertCreateNamespace(upgradeNamespacePrefix)
 			DeferCleanup(cleanupNamespace, upgradeNamespace)
-
+			JustAfterEach(func() {
+				testsUtils.CleanupClusterLogs(CurrentSpecReport().Failed(), upgradeNamespace)
+				if CurrentSpecReport().Failed() {
+					env.DumpNamespaceObjects(upgradeNamespace, "out/"+CurrentSpecReport().LeafNodeText+".log")
+				}
+			})
 			assertClustersWorkAfterOperatorUpgrade(upgradeNamespace, primeOperatorManifest)
 		})
 
@@ -698,7 +719,12 @@ var _ = Describe("Upgrade", Label(tests.LabelUpgrade, tests.LabelNoOpenshift), O
 
 			upgradeNamespace := assertCreateNamespace(upgradeNamespacePrefix)
 			DeferCleanup(cleanupNamespace, upgradeNamespace)
-
+			JustAfterEach(func() {
+				testsUtils.CleanupClusterLogs(CurrentSpecReport().Failed(), upgradeNamespace)
+				if CurrentSpecReport().Failed() {
+					env.DumpNamespaceObjects(upgradeNamespace, "out/"+CurrentSpecReport().LeafNodeText+".log")
+				}
+			})
 			assertClustersWorkAfterOperatorUpgrade(upgradeNamespace, primeOperatorManifest)
 		})
 	})

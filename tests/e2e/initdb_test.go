@@ -61,7 +61,12 @@ var _ = Describe("InitDB settings", Label(tests.LabelSmoke, tests.LabelBasic), f
 				}
 				return env.DeleteNamespace(namespace)
 			})
-
+			JustAfterEach(func() {
+				utils.CleanupClusterLogs(CurrentSpecReport().Failed(), namespace)
+				if CurrentSpecReport().Failed() {
+					env.DumpNamespaceObjects(namespace, "out/"+CurrentSpecReport().LeafNodeText+".log")
+				}
+			})
 			CreateResourceFromFile(namespace, postInitSQLSecretRef)
 			CreateResourceFromFile(namespace, postInitSQLConfigMapRef)
 
@@ -147,6 +152,12 @@ var _ = Describe("InitDB settings", Label(tests.LabelSmoke, tests.LabelBasic), f
 					env.DumpNamespaceObjects(namespace, "out/"+CurrentSpecReport().LeafNodeText+".log")
 				}
 				return env.DeleteNamespace(namespace)
+			})
+			JustAfterEach(func() {
+				utils.CleanupClusterLogs(CurrentSpecReport().Failed(), namespace)
+				if CurrentSpecReport().Failed() {
+					env.DumpNamespaceObjects(namespace, "out/"+CurrentSpecReport().LeafNodeText+".log")
+				}
 			})
 			AssertCreateCluster(namespace, clusterName, postInitSQLCluster, env)
 

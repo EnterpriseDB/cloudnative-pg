@@ -18,6 +18,7 @@ package e2e
 
 import (
 	"github.com/cloudnative-pg/cloudnative-pg/tests"
+	"github.com/cloudnative-pg/cloudnative-pg/tests/utils"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -48,6 +49,12 @@ var _ = Describe("Switchover", Serial, Label(tests.LabelSelfHealing), func() {
 				}
 				return env.DeleteNamespace(namespace)
 			})
+			JustAfterEach(func() {
+				utils.CleanupClusterLogs(CurrentSpecReport().Failed(), namespace)
+				if CurrentSpecReport().Failed() {
+					env.DumpNamespaceObjects(namespace, "out/"+CurrentSpecReport().LeafNodeText+".log")
+				}
+			})
 			clusterName, err := env.GetResourceNameFromYAML(sampleFileWithReplicationSlots)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -69,6 +76,12 @@ var _ = Describe("Switchover", Serial, Label(tests.LabelSelfHealing), func() {
 					env.DumpNamespaceObjects(namespace, "out/"+CurrentSpecReport().LeafNodeText+".log")
 				}
 				return env.DeleteNamespace(namespace)
+			})
+			JustAfterEach(func() {
+				utils.CleanupClusterLogs(CurrentSpecReport().Failed(), namespace)
+				if CurrentSpecReport().Failed() {
+					env.DumpNamespaceObjects(namespace, "out/"+CurrentSpecReport().LeafNodeText+".log")
+				}
 			})
 			clusterName, err := env.GetResourceNameFromYAML(sampleFileWithoutReplicationSlots)
 			Expect(err).ToNot(HaveOccurred())
