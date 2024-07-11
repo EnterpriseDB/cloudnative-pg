@@ -34,11 +34,20 @@ var _ = Describe("Synchronous Replicas", Label(tests.LabelReplication), func() {
 	var namespace string
 	var clusterName string
 	const level = tests.Medium
+
 	BeforeEach(func() {
 		if testLevelEnv.Depth < int(level) {
 			Skip("Test depth is lower than the amount requested for this test")
 		}
 	})
+
+	JustAfterEach(func() {
+		utils.CleanupClusterLogs(CurrentSpecReport().Failed(), namespace)
+		if CurrentSpecReport().Failed() {
+			env.DumpNamespaceObjects(namespace, "out/"+CurrentSpecReport().LeafNodeText+".log")
+		}
+	})
+
 	It("can manage sync replicas", func() {
 		const namespacePrefix = "sync-replicas-e2e"
 		clusterName = "cluster-syncreplicas"
@@ -53,7 +62,6 @@ var _ = Describe("Synchronous Replicas", Label(tests.LabelReplication), func() {
 			}
 			return env.DeleteNamespace(namespace)
 		})
-
 		AssertCreateCluster(namespace, clusterName, sampleFile, env)
 
 		commandTimeout := time.Second * 10
@@ -153,7 +161,6 @@ var _ = Describe("Synchronous Replicas", Label(tests.LabelReplication), func() {
 			}
 			return env.DeleteNamespace(namespace)
 		})
-
 		AssertCreateCluster(namespace, clusterName, sampleFile, env)
 		AssertClusterIsReady(namespace, clusterName, 30, env)
 

@@ -309,7 +309,6 @@ var _ = Describe("Upgrade", Label(tests.LabelUpgrade, tests.LabelNoOpenshift), O
 			env.DumpOperator(operatorNamespace,
 				"out/"+CurrentSpecReport().LeafNodeText+"operator.log")
 		}
-
 		err := env.DeleteNamespace(namespace)
 		if err != nil {
 			return fmt.Errorf("could not cleanup. Failed to delete namespace: %v", err)
@@ -628,8 +627,15 @@ var _ = Describe("Upgrade", Label(tests.LabelUpgrade, tests.LabelNoOpenshift), O
 	}
 
 	When("upgrading from the most recent tag to the current operator", func() {
+		var upgradeNamespace string
 		JustBeforeEach(func() {
 			assertManifestPresent(currentOperatorManifest)
+		})
+		JustAfterEach(func() {
+			testsUtils.CleanupClusterLogs(CurrentSpecReport().Failed(), upgradeNamespace)
+			if CurrentSpecReport().Failed() {
+				env.DumpNamespaceObjects(upgradeNamespace, "out/"+CurrentSpecReport().LeafNodeText+".log")
+			}
 		})
 
 		It("keeps clusters working after a rolling upgrade", func() {
@@ -642,7 +648,7 @@ var _ = Describe("Upgrade", Label(tests.LabelUpgrade, tests.LabelNoOpenshift), O
 
 			GinkgoWriter.Printf("installing the recent CNPG tag %s\n", mostRecentTag)
 			testsUtils.InstallLatestCNPGOperator(mostRecentTag, env)
-			upgradeNamespace := assertCreateNamespace(upgradeNamespacePrefix)
+			upgradeNamespace = assertCreateNamespace(upgradeNamespacePrefix)
 			DeferCleanup(cleanupNamespace, upgradeNamespace)
 
 			assertClustersWorkAfterOperatorUpgrade(upgradeNamespace, currentOperatorManifest)
@@ -660,17 +666,26 @@ var _ = Describe("Upgrade", Label(tests.LabelUpgrade, tests.LabelNoOpenshift), O
 			GinkgoWriter.Printf("installing the recent CNPG tag %s\n", mostRecentTag)
 			testsUtils.InstallLatestCNPGOperator(mostRecentTag, env)
 
-			upgradeNamespace := assertCreateNamespace(upgradeNamespacePrefix)
+			upgradeNamespace = assertCreateNamespace(upgradeNamespacePrefix)
 			DeferCleanup(cleanupNamespace, upgradeNamespace)
+
 			assertClustersWorkAfterOperatorUpgrade(upgradeNamespace, currentOperatorManifest)
 			assertManagerRollout()
 		})
 	})
 
 	When("upgrading from the current operator to a `prime` operator with a new hash", func() {
+		var upgradeNamespace string
 		JustBeforeEach(func() {
 			assertManifestPresent(currentOperatorManifest)
 			assertManifestPresent(primeOperatorManifest)
+		})
+
+		JustAfterEach(func() {
+			testsUtils.CleanupClusterLogs(CurrentSpecReport().Failed(), upgradeNamespace)
+			if CurrentSpecReport().Failed() {
+				env.DumpNamespaceObjects(upgradeNamespace, "out/"+CurrentSpecReport().LeafNodeText+".log")
+			}
 		})
 
 		It("keeps clusters working after an online upgrade", func() {
@@ -682,9 +697,8 @@ var _ = Describe("Upgrade", Label(tests.LabelUpgrade, tests.LabelNoOpenshift), O
 			GinkgoWriter.Printf("installing the current operator %s\n", currentOperatorManifest)
 			deployOperator(currentOperatorManifest)
 
-			upgradeNamespace := assertCreateNamespace(upgradeNamespacePrefix)
+			upgradeNamespace = assertCreateNamespace(upgradeNamespacePrefix)
 			DeferCleanup(cleanupNamespace, upgradeNamespace)
-
 			assertClustersWorkAfterOperatorUpgrade(upgradeNamespace, primeOperatorManifest)
 		})
 
@@ -696,7 +710,7 @@ var _ = Describe("Upgrade", Label(tests.LabelUpgrade, tests.LabelNoOpenshift), O
 			GinkgoWriter.Printf("installing the current operator %s\n", currentOperatorManifest)
 			deployOperator(currentOperatorManifest)
 
-			upgradeNamespace := assertCreateNamespace(upgradeNamespacePrefix)
+			upgradeNamespace = assertCreateNamespace(upgradeNamespacePrefix)
 			DeferCleanup(cleanupNamespace, upgradeNamespace)
 
 			assertClustersWorkAfterOperatorUpgrade(upgradeNamespace, primeOperatorManifest)
