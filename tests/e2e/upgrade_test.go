@@ -302,7 +302,6 @@ var _ = Describe("Upgrade", Label(tests.LabelUpgrade, tests.LabelNoOpenshift), O
 	cleanupNamespace := func(namespace string) error {
 		GinkgoWriter.Println("cleaning up")
 		if CurrentSpecReport().Failed() {
-			env.DumpNamespaceObjects(namespace, "out/"+CurrentSpecReport().LeafNodeText+".log")
 			// Dump the minio namespace when failed
 			env.DumpNamespaceObjects(minioEnv.Namespace, "out/"+CurrentSpecReport().LeafNodeText+"minio.log")
 			// Dump the operator namespace, as operator is changing too
@@ -335,14 +334,14 @@ var _ = Describe("Upgrade", Label(tests.LabelUpgrade, tests.LabelNoOpenshift), O
 	assertCreateNamespace := func(namespacePrefix string) string {
 		var namespace string
 		By(fmt.Sprintf(
-			"having a '%s' upgradeNamespace",
+			"having a '%s' namespace",
 			namespacePrefix), func() {
 			var err error
-			// Create a upgradeNamespace for all the resources
+			// Create a namespace for all the resources
 			namespace, err = env.CreateUniqueNamespace(namespacePrefix)
 			Expect(err).ToNot(HaveOccurred())
 
-			// Creating a upgradeNamespace should be quick
+			// Creating a namespace should be quick
 			namespacedName := types.NamespacedName{
 				Namespace: namespace,
 				Name:      namespace,
@@ -403,7 +402,7 @@ var _ = Describe("Upgrade", Label(tests.LabelUpgrade, tests.LabelNoOpenshift), O
 		})
 		// Create the cluster. Since it will take a while, we'll do more stuff
 		// in parallel and check for it to be up later.
-		By(fmt.Sprintf("creating a Cluster in the '%v' upgradeNamespace",
+		By(fmt.Sprintf("creating a Cluster in the '%v' namespace",
 			upgradeNamespace), func() {
 			// set the serverName to a random name
 			err := os.Setenv("SERVER_NAME", serverName1)
@@ -626,16 +625,17 @@ var _ = Describe("Upgrade", Label(tests.LabelUpgrade, tests.LabelNoOpenshift), O
 		Expect(err).NotTo(HaveOccurred(), missingManifestsMessage)
 	}
 
+	var namespace string
+
+	JustAfterEach(func() {
+		if CurrentSpecReport().Failed() {
+			env.DumpNamespaceObjects(namespace, "out/"+CurrentSpecReport().LeafNodeText+".log")
+		}
+	})
+
 	When("upgrading from the most recent tag to the current operator", func() {
-		var upgradeNamespace string
 		JustBeforeEach(func() {
 			assertManifestPresent(currentOperatorManifest)
-		})
-		JustAfterEach(func() {
-			testsUtils.CleanupClusterLogs(CurrentSpecReport().Failed(), upgradeNamespace)
-			if CurrentSpecReport().Failed() {
-				env.DumpNamespaceObjects(upgradeNamespace, "out/"+CurrentSpecReport().LeafNodeText+".log")
-			}
 		})
 
 		It("keeps clusters working after a rolling upgrade", func() {
@@ -648,10 +648,10 @@ var _ = Describe("Upgrade", Label(tests.LabelUpgrade, tests.LabelNoOpenshift), O
 
 			GinkgoWriter.Printf("installing the recent CNPG tag %s\n", mostRecentTag)
 			testsUtils.InstallLatestCNPGOperator(mostRecentTag, env)
-			upgradeNamespace = assertCreateNamespace(upgradeNamespacePrefix)
-			DeferCleanup(cleanupNamespace, upgradeNamespace)
+			namespace = assertCreateNamespace(upgradeNamespacePrefix)
+			DeferCleanup(cleanupNamespace, namespace)
 
-			assertClustersWorkAfterOperatorUpgrade(upgradeNamespace, currentOperatorManifest)
+			assertClustersWorkAfterOperatorUpgrade(namespace, currentOperatorManifest)
 		})
 
 		It("keeps clusters working after an online upgrade", func() {
@@ -666,26 +666,18 @@ var _ = Describe("Upgrade", Label(tests.LabelUpgrade, tests.LabelNoOpenshift), O
 			GinkgoWriter.Printf("installing the recent CNPG tag %s\n", mostRecentTag)
 			testsUtils.InstallLatestCNPGOperator(mostRecentTag, env)
 
-			upgradeNamespace = assertCreateNamespace(upgradeNamespacePrefix)
-			DeferCleanup(cleanupNamespace, upgradeNamespace)
+			namespace = assertCreateNamespace(upgradeNamespacePrefix)
+			DeferCleanup(cleanupNamespace, namespace)
 
-			assertClustersWorkAfterOperatorUpgrade(upgradeNamespace, currentOperatorManifest)
+			assertClustersWorkAfterOperatorUpgrade(namespace, currentOperatorManifest)
 			assertManagerRollout()
 		})
 	})
 
 	When("upgrading from the current operator to a `prime` operator with a new hash", func() {
-		var upgradeNamespace string
 		JustBeforeEach(func() {
 			assertManifestPresent(currentOperatorManifest)
 			assertManifestPresent(primeOperatorManifest)
-		})
-
-		JustAfterEach(func() {
-			testsUtils.CleanupClusterLogs(CurrentSpecReport().Failed(), upgradeNamespace)
-			if CurrentSpecReport().Failed() {
-				env.DumpNamespaceObjects(upgradeNamespace, "out/"+CurrentSpecReport().LeafNodeText+".log")
-			}
 		})
 
 		It("keeps clusters working after an online upgrade", func() {
@@ -697,9 +689,9 @@ var _ = Describe("Upgrade", Label(tests.LabelUpgrade, tests.LabelNoOpenshift), O
 			GinkgoWriter.Printf("installing the current operator %s\n", currentOperatorManifest)
 			deployOperator(currentOperatorManifest)
 
-			upgradeNamespace = assertCreateNamespace(upgradeNamespacePrefix)
-			DeferCleanup(cleanupNamespace, upgradeNamespace)
-			assertClustersWorkAfterOperatorUpgrade(upgradeNamespace, primeOperatorManifest)
+			namespace = assertCreateNamespace(upgradeNamespacePrefix)
+			DeferCleanup(cleanupNamespace, namespace)
+			assertClustersWorkAfterOperatorUpgrade(namespace, primeOperatorManifest)
 		})
 
 		It("keeps clusters working after a rolling upgrade", func() {
@@ -710,10 +702,10 @@ var _ = Describe("Upgrade", Label(tests.LabelUpgrade, tests.LabelNoOpenshift), O
 			GinkgoWriter.Printf("installing the current operator %s\n", currentOperatorManifest)
 			deployOperator(currentOperatorManifest)
 
-			upgradeNamespace = assertCreateNamespace(upgradeNamespacePrefix)
-			DeferCleanup(cleanupNamespace, upgradeNamespace)
+			namespace = assertCreateNamespace(upgradeNamespacePrefix)
+			DeferCleanup(cleanupNamespace, namespace)
 
-			assertClustersWorkAfterOperatorUpgrade(upgradeNamespace, primeOperatorManifest)
+			assertClustersWorkAfterOperatorUpgrade(namespace, primeOperatorManifest)
 		})
 	})
 })
