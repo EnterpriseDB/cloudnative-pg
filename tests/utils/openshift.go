@@ -122,7 +122,7 @@ func CreateSubscription(env *TestingEnvironment, channel string) error {
 		"channel":             channel,
 		"installPlanApproval": "Automatic",
 		"name":                "cloudnative-pg",
-		"source":              "cloudnative-pg-manifests",
+		"source":              "cloudnative-pg-catalog",
 		"sourceNamespace":     "openshift-marketplace",
 	}
 
