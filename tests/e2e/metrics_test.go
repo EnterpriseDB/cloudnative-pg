@@ -89,12 +89,6 @@ var _ = Describe("Metrics", Label(tests.LabelObservability), func() {
 	var namespace, metricsClusterName string
 	var err error
 
-	JustAfterEach(func() {
-		if CurrentSpecReport().Failed() {
-			env.DumpNamespaceObjects(namespace, "out/"+CurrentSpecReport().LeafNodeText+".log")
-		}
-	})
-
 	It("can gather metrics", func() {
 		// Create the cluster namespace
 		const namespacePrefix = "cluster-metrics-e2e"
