@@ -325,36 +325,6 @@ check_registry() {
     jq -r ".[].Containers | .[] | select(.Name==\"${registry_name}\") | .Name"
 }
 
-deploy_fluentd() {
-  local FLUENTD_IMAGE=fluent/fluentd-kubernetes-daemonset:v1.14.3-debian-forward-1.0
-  local FLUENTD_LOCAL_IMAGE="${registry_name}:5000/fluentd-kubernetes-daemonset:local"
-
-  docker pull "${FLUENTD_IMAGE}"
-  docker tag "${FLUENTD_IMAGE}" "${FLUENTD_LOCAL_IMAGE}"
-  load_image "${CLUSTER_NAME}" "${FLUENTD_LOCAL_IMAGE}"
-
-  # Add fluentd service to export logs
-  kubectl apply -f "${E2E_DIR}/local-fluentd.yaml"
-
-  # Run the tests and destroy the cluster
-  # Do not fail out if the tests fail. We want the logs anyway.
-  ITER=0
-  NODE=$(kubectl get nodes --no-headers | wc -l | tr -d " ")
-  while true; do
-    if [[ $ITER -ge 300 ]]; then
-      echo "Time out waiting for FluentD readiness"
-      exit 1
-    fi
-    NUM_READY=$(kubectl get ds fluentd -n kube-system -o jsonpath='{.status.numberReady}')
-    if [[ "$NUM_READY" == "$NODE" ]]; then
-      echo "FluentD is Ready"
-      break
-    fi
-    sleep 1
-    ((++ITER))
-  done
-}
-
 deploy_csi_host_path() {
   echo "${bright}Starting deployment of CSI driver plugin... ${reset}"
   CSI_BASE_URL=https://raw.githubusercontent.com/kubernetes-csi
@@ -548,7 +518,6 @@ create() {
     sed -i -E -e 's/0\.0\.0\.0/docker/g' "${HOME}/.kube/config"
   fi
 
-  deploy_fluentd
   deploy_csi_host_path
   deploy_prometheus_crds
 
