@@ -19,6 +19,7 @@ package e2e
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -74,6 +75,14 @@ var _ = SynchronizedBeforeSuite(func() []byte {
 	var err error
 	env, err = utils.NewTestingEnvironment()
 	Expect(err).ShouldNot(HaveOccurred())
+
+	// Start stern to write the logs of every single pod we create under cluster_logs
+	sternCtx, sternCancel := context.WithCancel(env.Ctx)
+	done := env.SternMultiTailer.Run(sternCtx, env.Interface)
+	DeferCleanup(func() {
+		sternCancel()
+		<-done
+	})
 
 	psqlPod, err := utils.GetPsqlClient(psqlClientNamespace, env)
 	Expect(err).ShouldNot(HaveOccurred())
@@ -150,7 +159,7 @@ var _ = SynchronizedAfterSuite(func() {
 // of output are not legal JSON
 func saveLogs(buf *bytes.Buffer, logsType, specName string, output io.Writer, capLines int) {
 	scanner := bufio.NewScanner(buf)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	scanner.Buffer(make([]byte, 0, 4096), 1024*1024)
 	filename := fmt.Sprintf("out/%s_%s.log", logsType, specName)
 	f, err := os.Create(filepath.Clean(filename))
 	if err != nil {
