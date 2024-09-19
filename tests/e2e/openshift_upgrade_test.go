@@ -16,8 +16,9 @@ limitations under the License.
 package e2e
 
 import (
-	"github.com/blang/semver"
+	"fmt"
 
+	"github.com/blang/semver"
 	"github.com/cloudnative-pg/cloudnative-pg/tests"
 	testsUtils "github.com/cloudnative-pg/cloudnative-pg/tests/utils"
 
@@ -34,12 +35,11 @@ var _ = Describe("Upgrade Paths on OpenShift", Label(tests.LabelUpgrade), Ordere
 		sampleFile        = fixturesDir + "/base/cluster-storage-class.yaml.template"
 	)
 
-	var ocp412 semver.Version
+	var ocp413 semver.Version
 	var ocpVersion semver.Version
 	var err error
 
 	BeforeAll(func() {
-		Skip("Disable until a new fix is compatible")
 	})
 
 	BeforeEach(func() {
@@ -50,7 +50,7 @@ var _ = Describe("Upgrade Paths on OpenShift", Label(tests.LabelUpgrade), Ordere
 			Skip("This test case is only applicable on OpenShift clusters")
 		}
 		// Setup OpenShift Versions
-		ocp412, err = semver.Make("4.12.0")
+		ocp413, err = semver.Make("4.13.0")
 		Expect(err).ToNot(HaveOccurred())
 		// Get current OpenShift Versions
 		ocpVersion, err = testsUtils.GetOpenshiftVersion(env)
@@ -110,15 +110,22 @@ var _ = Describe("Upgrade Paths on OpenShift", Label(tests.LabelUpgrade), Ordere
 		// Apply a subscription in the openshift-operators namespace.
 		// This should create the operator
 		By("Applying the initial subscription", func() {
-			err := testsUtils.CreateSubscription(env, initialSubscription)
-			Expect(err).ToNot(HaveOccurred())
+			if initialSubscription != "stable-v1" {
+				err := testsUtils.CreateSubscription(env, initialSubscription)
+				Expect(err).ToNot(HaveOccurred())
+			}
+
 			AssertOperatorIsReady()
 		})
 
+		subScription, err := testsUtils.GetSubscription(env)
+		GinkgoWriter.Printf("subScription is %v", subScription)
 		// Gather the version and semantic Versions of the operator
 		currentVersion, err := testsUtils.GetSubscriptionVersion(env)
+		GinkgoWriter.Printf("currentVersion is %v", currentVersion)
 		Expect(err).ToNot(HaveOccurred())
 		currentSemVersion, err := semver.Make(currentVersion)
+		GinkgoWriter.Printf("currentSemVersion is %v", currentSemVersion)
 		Expect(err).ToNot(HaveOccurred())
 		newPolicyRelease, err := semver.Make("1.16.0")
 		Expect(err).ToNot(HaveOccurred())
@@ -140,6 +147,8 @@ var _ = Describe("Upgrade Paths on OpenShift", Label(tests.LabelUpgrade), Ordere
 			// Apply the new subscription to upgrade to a new version of the operator
 			err = testsUtils.UpgradeSubscription(env, upgradeSubscription)
 			Expect(err).ToNot(HaveOccurred())
+			subScription, err = testsUtils.GetSubscription(env)
+			GinkgoWriter.Printf("subScription is %v", subScription)
 			Eventually(func() (string, error) {
 				return testsUtils.GetSubscriptionVersion(env)
 			}, 300).
@@ -153,8 +162,8 @@ var _ = Describe("Upgrade Paths on OpenShift", Label(tests.LabelUpgrade), Ordere
 	}
 
 	It("stable-v1 to alpha, currently version 1.22", func() {
-		if ocpVersion.GT(ocp412) {
-			Skip("This test runs only on OCP 4.12 or lower")
+		if ocpVersion.GT(ocp413) {
+			Skip(fmt.Sprintf("This test runs only on OCP 4.12 or lower, current ocp version is %s", ocpVersion.String()))
 		}
 		DeferCleanup(cleanupOpenshift)
 		applyUpgrade("stable-v1", "alpha")
