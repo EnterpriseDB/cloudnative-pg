@@ -804,6 +804,22 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+      -
+        name: Make apiserver logs readable
+        if: failure()
+        run: |
+          sudo chmod a+r tests/e2e/apiserver_logs/*.log
+      -
+        name: Archive apiserver logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apiserver-logs-${{ matrix.id }}
+          path: |
+            tests/e2e/apiserver_logs/**
+          retention-days: 7
+          if-no-files-found: ignore
+
   # AKS Secrets required
   # secrets.AZURE_CREDENTIALS
   # secrets.AZURE_SUBSCRIPTION

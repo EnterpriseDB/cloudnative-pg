@@ -1,0 +1,10 @@
+apiVersion: audit.k8s.io/v1
+kind: Policy
+rules:
+- level: RequestResponse
+  resources:
+  - group: "postgresql.cnpg.io"
+    resources:
+      - "clusters"
+      - "clusters/status"
+  - group: "batch"
