@@ -765,8 +765,8 @@ jobs:
   preflight:
     name: Run openshift-preflight test
     runs-on: ubuntu-22.04
-#    env:
-#      KUBECONFIG: "./kubeconfig"
+    env:
+      KUBECONFIG: "${HOME}/.kube/config"
     needs:
       - buildx
       - olm-bundle
@@ -806,7 +806,6 @@ jobs:
         uses: helm/kind-action@v1.10.0
         with:
           wait: "600s"
-#          config: ${{ env.KUBECONFIG }}
           version: ${{ env.KIND_VERSION }}
 
       - name: Install OLM
@@ -819,7 +818,7 @@ jobs:
           BUNDLE_IMG: ${{ needs.buildx.outputs.bundle_img }}
           PFLT_INDEXIMAGE: ${{ needs.buildx.outputs.index_img }}
           PFLT_ARTIFACTS: "preflight_operator_results"
-#          KUBECONFIG: ${{ env.KUBECONFIG }}
+          KUBECONFIG: ${{ env.KUBECONFIG }}
         run: |
           bin/preflight check operator ${BUNDLE_IMG} \
           --docker-config $HOME/.docker/config.json
