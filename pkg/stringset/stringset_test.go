@@ -73,4 +73,31 @@ var _ = Describe("String set", func() {
 			HaveExactElements("one", "three", "two"),
 		)
 	})
+
+	It("can intersect two string sets", func() {
+		setOne := From([]string{
+			"one",
+			"two",
+			"three",
+		})
+
+		setTwo := From([]string{
+			"two",
+			"three",
+			"four",
+		})
+
+		intersection := From([]string{
+			"two",
+			"three",
+		})
+
+		emptySet := From(nil)
+
+		Expect(setOne.Intersect(setTwo).Eq(intersection)).To(BeTrue())
+		Expect(setTwo.Intersect(setOne).Eq(intersection)).To(BeTrue())
+		Expect(setOne.Intersect(emptySet).Eq(emptySet)).To(BeTrue())
+		Expect(setTwo.Intersect(emptySet).Eq(emptySet)).To(BeTrue())
+		Expect(emptySet.Intersect(emptySet).Eq(emptySet)).To(BeTrue())
+	})
 })

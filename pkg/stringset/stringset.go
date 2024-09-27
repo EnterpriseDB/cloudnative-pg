@@ -111,3 +111,17 @@ func (set *Data) Eq(other *Data) bool {
 
 	return true
 }
+
+// Intersect returns the intersection between two
+// string sets
+func (set *Data) Intersect(other *Data) *Data {
+	result := make([]string, 0, len(set.innerMap)+len(other.innerMap))
+
+	for key := range set.innerMap {
+		if other.Has(key) {
+			result = append(result, key)
+		}
+	}
+
+	return From(result)
+}
