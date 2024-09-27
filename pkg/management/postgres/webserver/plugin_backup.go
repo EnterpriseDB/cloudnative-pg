@@ -61,7 +61,7 @@ func NewPluginBackupCommand(
 		"backupNamespace", backup.Name)
 
 	plugins := repository.New()
-	if err := plugins.RegisterUnixSocketPluginsInPath(configuration.Current.PluginSocketDir); err != nil {
+	if _, err := plugins.RegisterUnixSocketPluginsInPath(configuration.Current.PluginSocketDir); err != nil {
 		logger.Error(err, "Error while discovering plugins")
 	}
 
