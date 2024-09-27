@@ -20,7 +20,6 @@ env:
   GOLANGCI_LINT_VERSION: "v1.61.0"
   KUBEBUILDER_VERSION: "2.3.1"
   KIND_VERSION: "v0.24.0"
-  OLM_VERSION: "v0.28.0"
   OPERATOR_IMAGE_NAME: "ghcr.io/${{ github.repository }}-testing"
   API_DOC_NAME: "cloudnative-pg.v1.md"
   SLACK_USERNAME: "cnpg-bot"
@@ -416,7 +415,6 @@ jobs:
       controller_img: ${{ env.CONTROLLER_IMG }}
       controller_img_ubi8: ${{ env.CONTROLLER_IMG_UBI8 }}
       bundle_img: ${{ env.BUNDLE_IMG }}
-      index_img: ${{ env.INDEX_IMG }}
       catalog_img: ${{ env.CATALOG_IMG }}
       push: ${{ env.PUSH }}
     steps:
@@ -700,7 +698,6 @@ jobs:
           echo "CONTROLLER_IMG=${LOWERCASE_OPERATOR_IMAGE_NAME}:${TAG}" >> $GITHUB_ENV
           echo "CONTROLLER_IMG_UBI8=${LOWERCASE_OPERATOR_IMAGE_NAME}:${TAG_UBI}" >> $GITHUB_ENV
           echo "BUNDLE_IMG=${LOWERCASE_OPERATOR_IMAGE_NAME}:bundle-${TAG}" >> $GITHUB_ENV
-          echo "INDEX_IMG=${LOWERCASE_OPERATOR_IMAGE_NAME}:index-${TAG}" >> $GITHUB_ENV
           echo "CATALOG_IMG=${LOWERCASE_OPERATOR_IMAGE_NAME}:catalog-${TAG}" >> $GITHUB_ENV
 
   olm-bundle:
@@ -747,7 +744,6 @@ jobs:
         env:
           CONTROLLER_IMG: ${{ needs.buildx.outputs.controller_img_ubi8 }}
           BUNDLE_IMG: ${{ needs.buildx.outputs.bundle_img }}
-          INDEX_IMG: ${{ needs.buildx.outputs.index_img }}
           CATALOG_IMG: ${{ needs.buildx.outputs.catalog_img }}
         run: |
           make olm-catalog
@@ -765,8 +761,6 @@ jobs:
   preflight:
     name: Run openshift-preflight test
     runs-on: ubuntu-22.04
-    env:
-      KUBECONFIG: "${HOME}/.kube/config"
     needs:
       - buildx
       - olm-bundle
@@ -797,30 +791,9 @@ jobs:
       - name: Run preflight container test
         env:
           CONTROLLER_IMG: ${{ needs.buildx.outputs.controller_img_ubi8 }}
-          PFLT_ARTIFACTS: "preflight_container_results"
+          PFLT_ARTIFACTS: "preflight_results"
         run: |
           bin/preflight check container ${CONTROLLER_IMG} \
-          --docker-config $HOME/.docker/config.json
-
-      - name: Setting up KinD cluster
-        uses: helm/kind-action@v1.10.0
-        with:
-          wait: "600s"
-          version: ${{ env.KIND_VERSION }}
-
-      - name: Install OLM
-        run: |
-          curl -sL "https://github.com/operator-framework/operator-lifecycle-manager/releases/download/${OLM_VERSION}/install.sh" \
-          | bash -s "${OLM_VERSION}"
-
-      - name: Run preflight operator test
-        env:
-          BUNDLE_IMG: ${{ needs.buildx.outputs.bundle_img }}
-          PFLT_INDEXIMAGE: ${{ needs.buildx.outputs.index_img }}
-          PFLT_ARTIFACTS: "preflight_operator_results"
-          KUBECONFIG: ${{ env.KUBECONFIG }}
-        run: |
-          bin/preflight check operator ${BUNDLE_IMG} \
           --docker-config $HOME/.docker/config.json
 
       - name: Archive the preflight results
@@ -828,24 +801,13 @@ jobs:
         with:
           name: preflight_results
           path: |
-            preflight_container_results
-            preflight_operator_results
+            preflight_results
           retention-days: 7
 
       - name: Check preflight container results
         run: |
-          for dir in `ls preflight_container_results`; do
-              PASS=`jq -r .passed preflight_container_results/$dir/results.json`
-              if [[ "$PASS" == "false" ]]
-              then
-                exit 1
-              fi
-          done
-
-      - name: Check preflight operator results
-        run: |
-          for dir in `ls preflight_operator_results`; do
-              PASS=`jq -r .passed preflight_operator_results/$dir/results.json`
+          for dir in `ls preflight_results`; do
+              PASS=`jq -r .passed preflight_results/$dir/results.json`
               if [[ "$PASS" == "false" ]]
               then
                 exit 1
