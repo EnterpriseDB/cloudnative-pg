@@ -50,8 +50,6 @@ TEST_UPGRADE_TO_V1=${TEST_UPGRADE_TO_V1:-true}
 
 # Define the directories used by the script
 ROOT_DIR=$(cd "$(dirname "$0")/../"; pwd)
-HACK_DIR="${ROOT_DIR}/hack"
-E2E_DIR="${HACK_DIR}/e2e"
 TEMP_DIR="$(mktemp -d)"
 LOG_DIR=${LOG_DIR:-$ROOT_DIR/_logs/}
 trap 'rm -fr ${TEMP_DIR}' EXIT
