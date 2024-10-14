@@ -31,6 +31,7 @@ import (
 	barmanCredentials "github.com/cloudnative-pg/barman-cloud/pkg/credentials"
 	"github.com/cloudnative-pg/machinery/pkg/fileutils"
 	"github.com/cloudnative-pg/machinery/pkg/log"
+	pgTime "github.com/cloudnative-pg/machinery/pkg/postgres/time"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -43,7 +44,6 @@ import (
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/conditions"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/postgres"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/resources"
-	"github.com/cloudnative-pg/cloudnative-pg/pkg/utils"
 
 	// this is needed to correctly open the sql connection with the pgx driver
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -99,6 +99,7 @@ func NewBarmanBackupCommand(
 // Start initiates a backup for this instance using
 // barman-cloud-backup
 func (b *BackupCommand) Start(ctx context.Context) error {
+	contextLogger := log.FromContext(ctx)
 	if err := b.ensureCompatibility(); err != nil {
 		return err
 	}
@@ -111,7 +112,7 @@ func (b *BackupCommand) Start(ctx context.Context) error {
 	}
 
 	if err := ensureWalArchiveIsWorking(b.Instance); err != nil {
-		log.Warning("WAL archiving is not working", "err", err)
+		contextLogger.Warning("WAL archiving is not working", "err", err)
 		b.Backup.GetStatus().Phase = apiv1.BackupPhaseWalArchivingFailing
 		return PatchBackupStatusAndRetry(ctx, b.Client, b.Backup)
 	}
@@ -120,7 +121,7 @@ func (b *BackupCommand) Start(ctx context.Context) error {
 		b.Backup.GetStatus().Phase = apiv1.BackupPhaseRunning
 		err := PatchBackupStatusAndRetry(ctx, b.Client, b.Backup)
 		if err != nil {
-			log.Error(err, "can't set backup as WAL archiving failing")
+			contextLogger.Error(err, "can't set backup as WAL archiving failing")
 		}
 	}
 
@@ -190,7 +191,7 @@ func (b *BackupCommand) run(ctx context.Context) {
 
 			meta.SetStatusCondition(&b.Cluster.Status.Conditions, *apiv1.BuildClusterBackupFailedCondition(err))
 
-			b.Cluster.Status.LastFailedBackup = utils.GetCurrentTimestampWithFormat(time.RFC3339)
+			b.Cluster.Status.LastFailedBackup = pgTime.GetCurrentTimestampWithFormat(time.RFC3339)
 			return b.Client.Status().Patch(ctx, b.Cluster, client.MergeFrom(origCluster))
 		}); failErr != nil {
 			b.Log.Error(failErr, "while setting cluster condition for failed backup")
@@ -209,7 +210,6 @@ func (b *BackupCommand) takeBackup(ctx context.Context) error {
 
 	// Update backup status in cluster conditions on startup
 	if err := b.retryWithRefreshedCluster(ctx, func() error {
-		// TODO: this condition is set only here, never removed or handled?
 		return conditions.Patch(ctx, b.Client, b.Cluster, apiv1.BackupStartingCondition)
 	}); err != nil {
 		b.Log.Error(err, "Error changing backup condition (backup started)")
@@ -342,7 +342,7 @@ func (b *BackupCommand) setupBackupStatus() {
 	backupStatus := b.Backup.GetStatus()
 
 	if b.Capabilities.ShouldExecuteBackupWithName(b.Cluster) {
-		backupStatus.BackupName = fmt.Sprintf("backup-%v", utils.ToCompactISO8601(time.Now()))
+		backupStatus.BackupName = fmt.Sprintf("backup-%v", pgTime.ToCompactISO8601(time.Now()))
 	}
 	backupStatus.BarmanCredentials = barmanConfiguration.BarmanCredentials
 	backupStatus.EndpointCA = barmanConfiguration.EndpointCA

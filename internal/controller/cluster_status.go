@@ -24,6 +24,7 @@ import (
 	"sort"
 
 	"github.com/cloudnative-pg/machinery/pkg/log"
+	pgTime "github.com/cloudnative-pg/machinery/pkg/postgres/time"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -242,6 +243,7 @@ func (r *ClusterReconciler) updateResourceStatus(
 	cluster *apiv1.Cluster,
 	resources *managedResources,
 ) error {
+	contextLogger := log.FromContext(ctx)
 	// Retrieve the cluster key
 
 	existingClusterStatus := cluster.Status
@@ -297,7 +299,7 @@ func (r *ClusterReconciler) updateResourceStatus(
 				"targetPrimary", cluster.Status.TargetPrimary,
 				"instances", resources.instances)
 			cluster.Status.TargetPrimary = cluster.Status.CurrentPrimary
-			cluster.Status.TargetPrimaryTimestamp = utils.GetCurrentTimestamp()
+			cluster.Status.TargetPrimaryTimestamp = pgTime.GetCurrentTimestamp()
 		}
 	}
 
@@ -316,7 +318,7 @@ func (r *ClusterReconciler) updateResourceStatus(
 	if poolerIntegrations, err := r.getPoolerIntegrationsNeeded(ctx, cluster); err == nil {
 		cluster.Status.PoolerIntegrations = poolerIntegrations
 	} else {
-		log.Error(err, "while checking pooler integrations were needed, ignored")
+		contextLogger.Error(err, "while checking pooler integrations were needed, ignored")
 	}
 
 	// Set the current hash code of the operator binary inside the status.
@@ -719,7 +721,7 @@ func (r *ClusterReconciler) setPrimaryInstance(
 ) error {
 	origCluster := cluster.DeepCopy()
 	cluster.Status.TargetPrimary = podName
-	cluster.Status.TargetPrimaryTimestamp = utils.GetCurrentTimestamp()
+	cluster.Status.TargetPrimaryTimestamp = pgTime.GetCurrentTimestamp()
 	return r.Status().Patch(ctx, cluster, client.MergeFrom(origCluster))
 }
 

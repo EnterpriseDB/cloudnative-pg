@@ -25,15 +25,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cloudnative-pg/machinery/pkg/image/reference"
 	"github.com/cloudnative-pg/machinery/pkg/log"
+	pgTime "github.com/cloudnative-pg/machinery/pkg/postgres/time"
+	"github.com/cloudnative-pg/machinery/pkg/postgres/version"
+	"github.com/cloudnative-pg/machinery/pkg/stringset"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/cloudnative-pg/cloudnative-pg/internal/configuration"
-	"github.com/cloudnative-pg/cloudnative-pg/pkg/postgres"
-	"github.com/cloudnative-pg/cloudnative-pg/pkg/stringset"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/system"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/utils"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/versions"
@@ -116,7 +118,6 @@ func (st *ServiceAccountTemplate) MergeMetadata(sa *corev1.ServiceAccount) {
 // MatchesTopology checks if the two topologies have
 // the same label values (labels are specified in SyncReplicaElectionConstraints.NodeLabelsAntiAffinity)
 func (topologyLabels PodTopologyLabels) MatchesTopology(instanceTopology PodTopologyLabels) bool {
-	log.Debug("matching topology", "main", topologyLabels, "second", instanceTopology)
 	for mainLabelName, mainLabelValue := range topologyLabels {
 		if mainLabelValue != instanceTopology[mainLabelName] {
 			return false
@@ -134,11 +135,6 @@ func (status *ClusterStatus) GetAvailableArchitecture(archName string) *Availabl
 	}
 	return nil
 }
-
-// DeepCopyInto needs to be manually added for the controller-gen compiler to work correctly, given that it cannot
-// generate the DeepCopyInto for the regexp type.
-// The method is empty because we don't want to transfer the cache when invoking DeepCopyInto
-func (receiver synchronizeReplicasCache) DeepCopyInto(*synchronizeReplicasCache) {}
 
 func (r *SynchronizeReplicasConfiguration) compileRegex() []error {
 	if r == nil {
@@ -399,26 +395,16 @@ func (cluster *Cluster) GetImageName() string {
 // image name or from the ImageCatalogRef.
 // Example:
 //
-// ghcr.io/cloudnative-pg/postgresql:14.0 corresponds to version 140000
-// ghcr.io/cloudnative-pg/postgresql:13.2 corresponds to version 130002
-// ghcr.io/cloudnative-pg/postgresql:9.6.3 corresponds to version 90603
-func (cluster *Cluster) GetPostgresqlVersion() (int, error) {
+// ghcr.io/cloudnative-pg/postgresql:14.0 corresponds to version (14,0)
+// ghcr.io/cloudnative-pg/postgresql:13.2 corresponds to version (13,2)
+func (cluster *Cluster) GetPostgresqlVersion() (version.Data, error) {
 	if cluster.Spec.ImageCatalogRef != nil {
-		return postgres.GetPostgresVersionFromTag(strconv.Itoa(cluster.Spec.ImageCatalogRef.Major))
+		return version.FromTag(strconv.Itoa(cluster.Spec.ImageCatalogRef.Major))
 	}
 
 	image := cluster.GetImageName()
-	tag := utils.GetImageTag(image)
-	return postgres.GetPostgresVersionFromTag(tag)
-}
-
-// GetPostgresqlMajorVersion gets the PostgreSQL image major version used in the Cluster
-func (cluster *Cluster) GetPostgresqlMajorVersion() (int, error) {
-	version, err := cluster.GetPostgresqlVersion()
-	if err != nil {
-		return 0, err
-	}
-	return postgres.GetPostgresMajorVersion(version), nil
+	tag := reference.New(image).Tag
+	return version.FromTag(tag)
 }
 
 // GetImagePullSecret get the name of the pull secret to use
@@ -1130,7 +1116,7 @@ func (cluster *Cluster) GetEnableSuperuserAccess() bool {
 func (cluster *Cluster) LogTimestampsWithMessage(ctx context.Context, logMessage string) {
 	contextLogger := log.FromContext(ctx)
 
-	currentTimestamp := utils.GetCurrentTimestamp()
+	currentTimestamp := pgTime.GetCurrentTimestamp()
 	keysAndValues := []interface{}{
 		"phase", cluster.Status.Phase,
 		"currentTimestamp", currentTimestamp,
@@ -1141,7 +1127,7 @@ func (cluster *Cluster) LogTimestampsWithMessage(ctx context.Context, logMessage
 	var errs []string
 
 	// Elapsed time since the last request of promotion (TargetPrimaryTimestamp)
-	if diff, err := utils.DifferenceBetweenTimestamps(
+	if diff, err := pgTime.DifferenceBetweenTimestamps(
 		currentTimestamp,
 		cluster.Status.TargetPrimaryTimestamp,
 	); err == nil {
@@ -1155,7 +1141,7 @@ func (cluster *Cluster) LogTimestampsWithMessage(ctx context.Context, logMessage
 	}
 
 	// Elapsed time since the last promotion (CurrentPrimaryTimestamp)
-	if currentPrimaryDifference, err := utils.DifferenceBetweenTimestamps(
+	if currentPrimaryDifference, err := pgTime.DifferenceBetweenTimestamps(
 		currentTimestamp,
 		cluster.Status.CurrentPrimaryTimestamp,
 	); err == nil {
@@ -1172,7 +1158,7 @@ func (cluster *Cluster) LogTimestampsWithMessage(ctx context.Context, logMessage
 	// When positive, it is the amount of time required in the last promotion
 	// of a standby to a primary. If negative, it means we have a failover/switchover
 	// in progress, and the value represents the last measured uptime of the primary.
-	if currentPrimaryTargetDifference, err := utils.DifferenceBetweenTimestamps(
+	if currentPrimaryTargetDifference, err := pgTime.DifferenceBetweenTimestamps(
 		cluster.Status.CurrentPrimaryTimestamp,
 		cluster.Status.TargetPrimaryTimestamp,
 	); err == nil {
@@ -1394,7 +1380,7 @@ func (target *RecoveryTarget) BuildPostgresOptions() string {
 	if target.TargetTime != "" {
 		result += fmt.Sprintf(
 			"recovery_target_time = '%v'\n",
-			utils.ConvertToPostgresFormat(target.TargetTime))
+			pgTime.ConvertToPostgresFormat(target.TargetTime))
 	}
 	if target.TargetImmediate != nil && *target.TargetImmediate {
 		result += "recovery_target = immediate\n"

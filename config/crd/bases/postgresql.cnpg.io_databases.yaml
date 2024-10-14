@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.3
+    controller-gen.kubebuilder.io/version: v0.16.4
   name: databases.postgresql.cnpg.io
 spec:
   group: postgresql.cnpg.io
@@ -61,6 +61,12 @@ spec:
               allowConnections:
                 description: True when connections to this database are allowed
                 type: boolean
+              builtin_locale:
+                description: The BUILTIN_LOCALE (cannot be changed)
+                type: string
+                x-kubernetes-validations:
+                - message: builtin_locale is immutable
+                  rule: self == oldSelf
               cluster:
                 description: The corresponding cluster
                 properties:
@@ -75,6 +81,12 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              collation_version:
+                description: The COLLATION_VERSION (cannot be changed)
+                type: string
+                x-kubernetes-validations:
+                - message: collation_version is immutable
+                  rule: self == oldSelf
               connectionLimit:
                 description: |-
                   Connection limit, -1 means no limit and -2 means the
@@ -93,15 +105,57 @@ spec:
                 x-kubernetes-validations:
                 - message: encoding is immutable
                   rule: self == oldSelf
+              icu_locale:
+                description: The ICU_LOCALE (cannot be changed)
+                type: string
+                x-kubernetes-validations:
+                - message: icu_locale is immutable
+                  rule: self == oldSelf
+              icu_rules:
+                description: The ICU_RULES (cannot be changed)
+                type: string
+                x-kubernetes-validations:
+                - message: icu_rules is immutable
+                  rule: self == oldSelf
               isTemplate:
                 description: True when the database is a template
                 type: boolean
+              lc_collate:
+                description: The LC_COLLATE (cannot be changed)
+                type: string
+                x-kubernetes-validations:
+                - message: lc_collate is immutable
+                  rule: self == oldSelf
+              lc_ctype:
+                description: The LC_CTYPE (cannot be changed)
+                type: string
+                x-kubernetes-validations:
+                - message: lc_ctype is immutable
+                  rule: self == oldSelf
+              locale:
+                description: The locale (cannot be changed)
+                type: string
+                x-kubernetes-validations:
+                - message: locale is immutable
+                  rule: self == oldSelf
+              locale_provider:
+                description: The locale provider (cannot be changed)
+                type: string
+                x-kubernetes-validations:
+                - message: locale_provider is immutable
+                  rule: self == oldSelf
               name:
                 description: The name inside PostgreSQL
                 type: string
                 x-kubernetes-validations:
                 - message: name is immutable
                   rule: self == oldSelf
+                - message: the name postgres is reserved
+                  rule: self != 'postgres'
+                - message: the name template0 is reserved
+                  rule: self != 'template0'
+                - message: the name template1 is reserved
+                  rule: self != 'template1'
               owner:
                 description: The owner
                 type: string

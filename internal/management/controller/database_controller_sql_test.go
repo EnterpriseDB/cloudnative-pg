@@ -107,6 +107,51 @@ var _ = Describe("Managed Database SQL", func() {
 			err = createDatabase(ctx, db, database)
 			Expect(err).ToNot(HaveOccurred())
 		})
+
+		It("should create a new Database with locale and encoding kind fields", func(ctx SpecContext) {
+			database.Spec.Locale = "POSIX"
+			database.Spec.LocaleProvider = "icu"
+			database.Spec.LcCtype = "en_US.utf8"
+			database.Spec.LcCollate = "C"
+			database.Spec.Encoding = "LATIN1"
+			database.Spec.IcuLocale = "en"
+			database.Spec.IcuRules = "fr"
+
+			expectedValue := sqlmock.NewResult(0, 1)
+			expectedQuery := fmt.Sprintf(
+				"CREATE DATABASE %s OWNER %s "+
+					"ENCODING %s LOCALE %s LOCALE_PROVIDER %s LC_COLLATE %s LC_CTYPE %s "+
+					"ICU_LOCALE %s ICU_RULES %s",
+				pgx.Identifier{database.Spec.Name}.Sanitize(), pgx.Identifier{database.Spec.Owner}.Sanitize(),
+				pgx.Identifier{database.Spec.Encoding}.Sanitize(), pgx.Identifier{database.Spec.Locale}.Sanitize(),
+				pgx.Identifier{database.Spec.LocaleProvider}.Sanitize(), pgx.Identifier{database.Spec.LcCollate}.Sanitize(),
+				pgx.Identifier{database.Spec.LcCtype}.Sanitize(),
+				pgx.Identifier{database.Spec.IcuLocale}.Sanitize(), pgx.Identifier{database.Spec.IcuRules}.Sanitize(),
+			)
+			dbMock.ExpectExec(expectedQuery).WillReturnResult(expectedValue)
+
+			err = createDatabase(ctx, db, database)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("should create a new Database with builtin locale", func(ctx SpecContext) {
+			database.Spec.LocaleProvider = "builtin"
+			database.Spec.BuiltinLocale = "C"
+			database.Spec.CollationVersion = "1.2.3"
+
+			expectedValue := sqlmock.NewResult(0, 1)
+			expectedQuery := fmt.Sprintf(
+				"CREATE DATABASE %s OWNER %s "+
+					"LOCALE_PROVIDER %s BUILTIN_LOCALE %s COLLATION_VERSION %s",
+				pgx.Identifier{database.Spec.Name}.Sanitize(), pgx.Identifier{database.Spec.Owner}.Sanitize(),
+				pgx.Identifier{database.Spec.LocaleProvider}.Sanitize(), pgx.Identifier{database.Spec.BuiltinLocale}.Sanitize(),
+				pgx.Identifier{database.Spec.CollationVersion}.Sanitize(),
+			)
+			dbMock.ExpectExec(expectedQuery).WillReturnResult(expectedValue)
+
+			err = createDatabase(ctx, db, database)
+			Expect(err).ToNot(HaveOccurred())
+		})
 	})
 
 	Context("updateDatabase", func() {

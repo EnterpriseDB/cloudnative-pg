@@ -16,12 +16,8 @@ limitations under the License.
 
 package utils
 
-// StringInSlice looks for a search string inside the string slice
-func StringInSlice(slice []string, search string) bool {
-	for _, s := range slice {
-		if s == search {
-			return true
-		}
-	}
-	return false
-}
+const (
+	// DatabaseFinalizerName is the name of the finalizer
+	// triggering the deletion of the database
+	DatabaseFinalizerName = MetadataNamespace + "/deleteDatabase"
+)

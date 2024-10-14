@@ -53,14 +53,13 @@ func NewCmd() *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
-			instance := postgres.NewInstance()
-
-			// The following are needed to correctly
+			// The fields in the instance are needed to correctly
 			// download the secret containing the TLS
 			// certificates
-			instance.Namespace = namespace
-			instance.PodName = podName
-			instance.ClusterName = clusterName
+			instance := postgres.NewInstance().
+				WithNamespace(namespace).
+				WithPodName(podName).
+				WithClusterName(clusterName)
 
 			info := postgres.InitInfo{
 				PgData:     pgData,
@@ -94,13 +93,15 @@ func NewCmd() *cobra.Command {
 }
 
 func joinSubCommand(ctx context.Context, instance *postgres.Instance, info postgres.InitInfo) error {
+	contextLogger := log.FromContext(ctx)
+
 	if err := info.CheckTargetDataDirectory(ctx); err != nil {
 		return err
 	}
 
 	client, err := management.NewControllerRuntimeClient()
 	if err != nil {
-		log.Error(err, "Error creating Kubernetes client")
+		contextLogger.Error(err, "Error creating Kubernetes client")
 		return err
 	}
 
@@ -112,10 +113,10 @@ func joinSubCommand(ctx context.Context, instance *postgres.Instance, info postg
 	// Download the cluster definition from the API server
 	var cluster apiv1.Cluster
 	if err := reconciler.GetClient().Get(ctx,
-		ctrl.ObjectKey{Namespace: instance.Namespace, Name: instance.ClusterName},
+		ctrl.ObjectKey{Namespace: instance.GetNamespaceName(), Name: instance.GetClusterName()},
 		&cluster,
 	); err != nil {
-		log.Error(err, "Error while getting cluster")
+		contextLogger.Error(err, "Error while getting cluster")
 		return err
 	}
 
@@ -131,8 +132,8 @@ func joinSubCommand(ctx context.Context, instance *postgres.Instance, info postg
 	reconciler.RefreshSecrets(ctx, &cluster)
 
 	// Run "pg_basebackup" to download the data directory from the primary
-	if err := info.Join(&cluster); err != nil {
-		log.Error(err, "Error joining node")
+	if err := info.Join(ctx, &cluster); err != nil {
+		contextLogger.Error(err, "Error joining node")
 		return err
 	}
 

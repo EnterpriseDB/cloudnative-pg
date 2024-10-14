@@ -81,17 +81,21 @@ Git tags for versions are prefixed with `v`.
 
 | Version         | Currently supported  | Release date      | End of life         | Supported Kubernetes versions | Tested, but not supported | Supported Postgres versions |
 |-----------------|----------------------|-------------------|---------------------|-------------------------------|---------------------------|-----------------------------|
-| 1.24.x          | Yes                  | August 22, 2024   | ~ February, 2025    | 1.28, 1.29, 1.30, 1.31        | 1.27                      | 12 - 16                     |
+| 1.24.x          | Yes                  | August 22, 2024   | ~ February, 2025    | 1.28, 1.29, 1.30, 1.31        | 1.27                      | 12 - 17                     |
 | 1.23.x          | Yes                  | April 24, 2024    | ~ November, 2024    | 1.27, 1.28, 1.29              | 1.30, 1.31                | 12 - 16                     |
 | main            | No, development only |                   |                     |                               |                           | 12 - 16                     |
 
 The list of supported Kubernetes versions in the table depends on what
 the CloudNativePG maintainers think is reasonable to support and to test.
 
-At the moment, the CloudNativePG community doesn't support or test any
-additional Kubernetes distribution, like Red Hat OpenShift. This might change
-in the future and, in that case, that would be reflected in an official policy
-written by the CloudNativePG maintainers.
+Currently, the CloudNativePG community does not officially support or test any
+Kubernetes distributions beyond the standard/vanilla one - such as Red Hat
+OpenShift. This may change in the future, and if it does, the CloudNativePG
+maintainers will update the official policy accordingly.
+
+If you plan to deploy CloudNativePG on Red Hat OpenShift, you can use the
+[certified operator provided by EDB](https://catalog.redhat.com/software/container-stacks/detail/653fd4035eece8598f66d97b),
+which comes with full support from EDB.
 
 ### Supported PostgreSQL versions
 
