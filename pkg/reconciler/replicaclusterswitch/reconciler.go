@@ -42,27 +42,34 @@ func Reconcile(
 	instanceClient instance.Client,
 	instances postgres.PostgresqlStatusList,
 ) (*ctrl.Result, error) {
+	contextLogger := log.FromContext(ctx).WithName("replica_cluster")
+
 	if !cluster.IsReplica() {
 		return nil, nil
 	}
 
-	contextLogger := log.FromContext(ctx).WithName("replica_cluster")
-
+	contextLogger.Info("PIPPO1")
 	if isDesignatedPrimaryTransitionCompleted(cluster) {
+		contextLogger.Info("PIPPO1.1")
 		return reconcileDemotionToken(ctx, cli, cluster, instanceClient, instances)
 	}
 
 	// waiting for the instance manager
+	contextLogger.Info("PIPPO2")
 	if IsDesignatedPrimaryTransitionRequested(cluster) {
+		contextLogger.Info("PIPPO2.1")
 		contextLogger.Info("waiting for the instance manager to transition the primary instance to a designated primary")
 		return nil, nil
 	}
 
+	contextLogger.Info("PIPPO3")
 	if !containsPrimaryInstance(instances) {
+		contextLogger.Info("PIPPO3.1")
 		// no primary instance present means that we have no work to do
 		return nil, nil
 	}
 
+	contextLogger.Info("PIPPO4")
 	return startTransition(ctx, cli, cluster)
 }
 
@@ -110,7 +117,14 @@ func startTransition(ctx context.Context, cli client.Client, cluster *apiv1.Clus
 	})
 
 	cluster.Status.SwitchReplicaClusterStatus.InProgress = true
-	if err := cli.Status().Patch(ctx, cluster, client.MergeFrom(origCluster)); err != nil {
+	patchDaFare := client.MergeFrom(origCluster)
+	bytesPatch, _ := patchDaFare.Data(cluster)
+	contextLogger.Info(
+		"PLUTO Faccio questa patch",
+		"patch", string(bytesPatch),
+		"original", origCluster.Status.Conditions,
+		"new", cluster.Status.Conditions)
+	if err := cli.Status().Patch(ctx, cluster, patchDaFare); err != nil {
 		return nil, err
 	}
 

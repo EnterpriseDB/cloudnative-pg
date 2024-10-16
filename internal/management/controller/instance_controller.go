@@ -961,6 +961,10 @@ func (r *InstanceReconciler) reconcileInstance(cluster *apiv1.Cluster) {
 			return false
 		}
 
+		// !r.instance.IsFenced() && !r.instance.MightBeUnavailable()  ===>  mette false
+		// !(r.instance.IsFenced() || r.instance.MightBeUnavailable()) ===>  mette false
+		// r.instance.IsFenced() || r.instance.MightBeUnavailable() ===>  mette true
+
 		if !r.instance.IsFenced() && !r.instance.MightBeUnavailable() {
 			return false
 		}
@@ -1287,7 +1291,9 @@ func (r *InstanceReconciler) reconcileDesignatedPrimary(
 	}
 
 	// I'm the primary, need to inform the operator
-	log.FromContext(ctx).Info("Setting myself as the current designated primary")
+	log.FromContext(ctx).Info(
+		"Setting myself as the current designated primary",
+		"requiresDesignatedPrimaryTransition", r.instance.RequiresDesignatedPrimaryTransition)
 
 	return changed, retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		var livingCluster apiv1.Cluster
@@ -1302,6 +1308,9 @@ func (r *InstanceReconciler) reconcileDesignatedPrimary(
 		updatedCluster.Status.CurrentPrimaryTimestamp = pgTime.GetCurrentTimestamp()
 		if r.instance.RequiresDesignatedPrimaryTransition {
 			externalcluster.SetDesignatedPrimaryTransitionCompleted(updatedCluster)
+			log.FromContext(ctx).Info(
+				"TOPOLINO",
+				"conditions", updatedCluster.Status.Conditions)
 		}
 
 		cluster.Status = updatedCluster.Status
