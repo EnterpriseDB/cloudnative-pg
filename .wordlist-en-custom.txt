@@ -1,4 +1,3 @@
-
 AES
 API's
 APIs
@@ -601,6 +600,7 @@ bootstrapinitdb
 bootstraprecovery
 br
 bs
+builtinLocale
 bw
 byStatus
 bypassrls
@@ -644,6 +644,7 @@ cn
 cnp
 cnpg
 codeready
+collationVersion
 columnValue
 commandError
 commandOutput
@@ -833,6 +834,8 @@ httpGet
 https
 hugepages
 icu
+icuLocale
+icuRules
 ident
 imageCatalogRef
 imageName
@@ -921,6 +924,7 @@ livenessProbeTimeout
 lm
 localeCType
 localeCollate
+localeProvider
 localhost
 localobjectreference
 locktype
