@@ -31,6 +31,8 @@ import (
 // OptimisticLockPatch will update a particular condition in cluster status.
 // This function may update the conditions in the passed cluster
 // with the latest ones that were found from the API server.
+// This function is needed because Kubernetes still doesn't support strategic merge
+// for CRDs (see https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/).
 func OptimisticLockPatch(
 	ctx context.Context,
 	c client.Client,
@@ -60,12 +62,6 @@ func OptimisticLockPatch(
 			return nil
 		}
 
-		// Send the new conditions to the API server preventing
-		// this update to remove the conditions added by other
-		// clients.
-		//
-		// Kubernetes still doesn't support strategic merge
-		// for CRDs (see https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/).
 		if err := c.Status().Patch(
 			ctx,
 			updatedCluster,
