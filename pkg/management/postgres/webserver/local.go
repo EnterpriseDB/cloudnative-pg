@@ -283,7 +283,7 @@ func (ws *localWebserverEndpoints) setWALArchiveStatusCondition(w http.ResponseW
 		return
 	}
 
-	if errCond := conditions.Update(ctx, ws.typedClient, cluster, asr.getContinuousArchivingCondition()); errCond != nil {
+	if errCond := conditions.OptimisticLockPatch(ctx, ws.typedClient, cluster, asr.getContinuousArchivingCondition()); errCond != nil {
 		contextLogger.Error(errCond, "Error changing wal archiving condition",
 			"condition", asr.getContinuousArchivingCondition())
 		http.Error(

@@ -103,7 +103,7 @@ func (b *PluginBackupCommand) invokeStart(ctx context.Context) {
 
 	// Update backup status in cluster conditions on startup
 	if err := b.retryWithRefreshedCluster(ctx, func() error {
-		return conditions.Update(ctx, b.Client, b.Cluster, apiv1.BackupStartingCondition)
+		return conditions.OptimisticLockPatch(ctx, b.Client, b.Cluster, apiv1.BackupStartingCondition)
 	}); err != nil {
 		contextLogger.Error(err, "Error changing backup condition (backup started)")
 		// We do not terminate here because we could still have a good backup
@@ -153,7 +153,7 @@ func (b *PluginBackupCommand) invokeStart(ctx context.Context) {
 
 	// Update backup status in cluster conditions on backup completion
 	if err := b.retryWithRefreshedCluster(ctx, func() error {
-		return conditions.Update(ctx, b.Client, b.Cluster, apiv1.BackupSucceededCondition)
+		return conditions.OptimisticLockPatch(ctx, b.Client, b.Cluster, apiv1.BackupSucceededCondition)
 	}); err != nil {
 		contextLogger.Error(err, "Can't update the cluster with the completed backup data")
 	}
