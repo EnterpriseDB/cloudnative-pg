@@ -14,63 +14,56 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package conditions
+package status
 
 import (
 	"context"
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	apiv1 "github.com/cloudnative-pg/cloudnative-pg/api/v1"
 )
 
-// OptimisticLockPatch will update a particular condition in cluster status.
-// This function may update the conditions in the passed cluster
-// with the latest ones that were found from the API server.
-// This function is needed because Kubernetes still doesn't support strategic merge
-// for CRDs (see https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/).
-func OptimisticLockPatch(
+// PatchWithOptimisticLock updates the status of the cluster using the passed
+// transaction function.
+// Important: after successfully updating the status, this
+// function refreshes it into the passed cluster
+func PatchWithOptimisticLock(
 	ctx context.Context,
 	c client.Client,
 	cluster *apiv1.Cluster,
-	conditions ...metav1.Condition,
+	tx func(cluster *apiv1.Cluster),
 ) error {
-	if cluster == nil || len(conditions) == 0 {
+	if cluster == nil {
 		return nil
 	}
 
-	applyConditions := func(cluster *apiv1.Cluster) bool {
-		changed := false
-		for _, c := range conditions {
-			changed = changed || meta.SetStatusCondition(&cluster.Status.Conditions, c)
-		}
-		return changed
-	}
-
-	var currentCluster apiv1.Cluster
 	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		var currentCluster apiv1.Cluster
 		if err := c.Get(ctx, client.ObjectKeyFromObject(cluster), &currentCluster); err != nil {
 			return err
 		}
 
 		updatedCluster := currentCluster.DeepCopy()
-		if changed := applyConditions(updatedCluster); !changed {
+		tx(updatedCluster)
+
+		if equality.Semantic.DeepEqual(currentCluster.Status, updatedCluster.Status) {
 			return nil
 		}
 
 		if err := c.Status().Patch(
 			ctx,
 			updatedCluster,
+			// Send the new status to the API server with optimistic locking
 			client.MergeFromWithOptions(&currentCluster, client.MergeFromWithOptimisticLock{}),
 		); err != nil {
 			return err
 		}
 
-		cluster.Status.Conditions = updatedCluster.Status.Conditions
+		cluster.Status = updatedCluster.Status
 
 		return nil
 	}); err != nil {
