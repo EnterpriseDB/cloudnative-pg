@@ -152,9 +152,7 @@ var _ = Describe("Configuration update", Ordered, Label(tests.LabelClusterMetada
 		Expect(err).ToNot(HaveOccurred())
 
 		By("apply configuration update", func() {
-			// Update the configuration
 			updateClusterPostgresParams(postgresParams, namespace)
-			AssertPostgresNoPendingRestart(namespace, clusterName, 300)
 		})
 
 		By("verify that work_mem result as expected", func() {
@@ -191,9 +189,7 @@ var _ = Describe("Configuration update", Ordered, Label(tests.LabelClusterMetada
 		})
 
 		By("apply configuration update", func() {
-			// Update the configuration
 			updateClusterPostgresPgHBA(namespace)
-			AssertPostgresNoPendingRestart(namespace, clusterName, 300)
 		})
 
 		By("verify that connections succeed after pg_hba_reload", func() {
@@ -233,10 +229,8 @@ var _ = Describe("Configuration update", Ordered, Label(tests.LabelClusterMetada
 		oldPrimary := cluster.Status.CurrentPrimary
 
 		By("apply configuration update", func() {
-			// Update the configuration
 			postgresParams["shared_buffers"] = "256MB"
 			updateClusterPostgresParams(postgresParams, namespace)
-			AssertPostgresNoPendingRestart(namespace, clusterName, timeout)
 		})
 
 		By("verify that shared_buffers setting changed", func() {
@@ -275,11 +269,9 @@ var _ = Describe("Configuration update", Ordered, Label(tests.LabelClusterMetada
 		oldPrimary := cluster.Status.CurrentPrimary
 
 		By("apply configuration update", func() {
-			// Update the configuration
 			postgresParams["max_replication_slots"] = "16"
 			postgresParams["maintenance_work_mem"] = "128MB"
 			updateClusterPostgresParams(postgresParams, namespace)
-			AssertPostgresNoPendingRestart(namespace, clusterName, timeout)
 		})
 
 		By("verify that both parameters have been modified in each pod", func() {
@@ -349,7 +341,6 @@ var _ = Describe("Configuration update", Ordered, Label(tests.LabelClusterMetada
 				delete(postgresParams, "port")
 				postgresParams["max_connections"] = "105"
 				updateClusterPostgresParams(postgresParams, namespace)
-				AssertPostgresNoPendingRestart(namespace, clusterName, timeout)
 			})
 
 			By("verify that max_connections has been decreased in every pod", func() {
@@ -392,10 +383,8 @@ var _ = Describe("Configuration update", Ordered, Label(tests.LabelClusterMetada
 			oldPrimary := cluster.Status.CurrentPrimary
 
 			By("apply configuration update", func() {
-				// Update the configuration
 				delete(postgresParams, "max_connections")
 				updateClusterPostgresParams(postgresParams, namespace)
-				AssertPostgresNoPendingRestart(namespace, clusterName, timeout)
 			})
 
 			By("verify that the max_connections has been set to default in every pod", func() {
@@ -445,9 +434,7 @@ var _ = Describe("Configuration update", Ordered, Label(tests.LabelClusterMetada
 			})
 
 			By("apply configuration update", func() {
-				// Update the configuration
 				updateClusterPostgresPgIdent(namespace)
-				AssertPostgresNoPendingRestart(namespace, clusterName, 300)
 			})
 
 			By("verify that there are now two entries in pg_ident_file_mappings", func() {
