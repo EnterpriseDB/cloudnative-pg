@@ -22,7 +22,7 @@ import sys
 from operator import itemgetter
 from typing import Dict, List
 
-POSTGRES_REPO = "ghcr.io/cloudnative-pg/postgresql"
+POSTGRES_REPO = "ghcr.io/cloudnative-pg/postgresql-testing"
 
 PG_VERSIONS_FILE = ".github/pg_versions.json"
 AKS_VERSIONS_FILE = ".github/aks_versions.json"
@@ -186,8 +186,8 @@ class E2EJob(dict):
                 "k8s_version": k8s_version,
                 "postgres_version": postgres_version,
                 "postgres_kind": kind,
-                "postgres_img": f"{repo}:{postgres_version}",
-                "postgres_pre_img": f"{repo}:{postgres_version_pre}",
+                "postgres_img": f"{repo}:{postgres_version}-minimal-bookworm",
+                "postgres_pre_img": f"{repo}:{postgres_version_pre}-minimal-bookworm",
             }
         )
 
