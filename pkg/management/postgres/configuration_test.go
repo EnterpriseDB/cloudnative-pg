@@ -116,6 +116,7 @@ var _ = Describe("testing the building of the ldap config string", func() {
 })
 
 var _ = Describe("Test building of the list of temporary tablespaces", func() {
+	const majorVersion = 17
 	clusterWithoutTablespaces := apiv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "configurationTest",
@@ -166,25 +167,23 @@ var _ = Describe("Test building of the list of temporary tablespaces", func() {
 	}
 
 	It("doesn't set temp_tablespaces if there are no declared tablespaces", func() {
-		config, _, err := createPostgresqlConfiguration(&clusterWithoutTablespaces, true)
-		Expect(err).ShouldNot(HaveOccurred())
+		config, _ := createPostgresqlConfiguration(&clusterWithoutTablespaces, true, majorVersion)
 		Expect(config).ToNot(ContainSubstring("temp_tablespaces"))
 	})
 
 	It("doesn't set temp_tablespaces if there are no temporary tablespaces", func() {
-		config, _, err := createPostgresqlConfiguration(&clusterWithoutTemporaryTablespaces, true)
-		Expect(err).ShouldNot(HaveOccurred())
+		config, _ := createPostgresqlConfiguration(&clusterWithoutTemporaryTablespaces, true, majorVersion)
 		Expect(config).ToNot(ContainSubstring("temp_tablespaces"))
 	})
 
 	It("sets temp_tablespaces when there are temporary tablespaces", func() {
-		config, _, err := createPostgresqlConfiguration(&clusterWithTemporaryTablespaces, true)
-		Expect(err).ShouldNot(HaveOccurred())
+		config, _ := createPostgresqlConfiguration(&clusterWithTemporaryTablespaces, true, majorVersion)
 		Expect(config).To(ContainSubstring("temp_tablespaces = 'other_temporary_tablespace,temporary_tablespace'"))
 	})
 })
 
 var _ = Describe("recovery_min_apply_delay", func() {
+	const majorVersion = 17
 	primaryCluster := apiv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "configurationTest",
@@ -233,24 +232,21 @@ var _ = Describe("recovery_min_apply_delay", func() {
 	It("do not set recovery_min_apply_delay in primary clusters", func() {
 		Expect(primaryCluster.IsReplica()).To(BeFalse())
 
-		config, _, err := createPostgresqlConfiguration(&primaryCluster, true)
-		Expect(err).ShouldNot(HaveOccurred())
+		config, _ := createPostgresqlConfiguration(&primaryCluster, true, majorVersion)
 		Expect(config).ToNot(ContainSubstring("recovery_min_apply_delay"))
 	})
 
 	It("set recovery_min_apply_delay in replica clusters when set", func() {
 		Expect(replicaCluster.IsReplica()).To(BeTrue())
 
-		config, _, err := createPostgresqlConfiguration(&replicaCluster, true)
-		Expect(err).ShouldNot(HaveOccurred())
+		config, _ := createPostgresqlConfiguration(&replicaCluster, true, majorVersion)
 		Expect(config).To(ContainSubstring("recovery_min_apply_delay = '3600s'"))
 	})
 
 	It("do not set recovery_min_apply_delay in replica clusters when not set", func() {
 		Expect(replicaClusterWithNoDelay.IsReplica()).To(BeTrue())
 
-		config, _, err := createPostgresqlConfiguration(&replicaClusterWithNoDelay, true)
-		Expect(err).ShouldNot(HaveOccurred())
+		config, _ := createPostgresqlConfiguration(&replicaClusterWithNoDelay, true, majorVersion)
 		Expect(config).ToNot(ContainSubstring("recovery_min_apply_delay"))
 	})
 })
