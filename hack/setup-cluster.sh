@@ -133,7 +133,7 @@ kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 networking:
   apiServerAddress: "0.0.0.0"
-  kubeProxyMode: "ipvs"
+  kubeProxyMode: "iptables"
 
 # add to the apiServer certSANs the name of the docker (dind) service in order to be able to reach the cluster through it
 kubeadmConfigPatchesJSON6902:
