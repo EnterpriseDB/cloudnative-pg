@@ -36,6 +36,7 @@ env:
   REGISTRY_USER: ${{ github.actor }}
   REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
   OPP_SCRIPT_URL: "https://raw.githubusercontent.com/redhat-openshift-ecosystem/community-operators-pipeline/ci/latest/ci/scripts/opp.sh"
+  SYFT_LOG_LEVEL: 'debug'
 
 defaults:
   run:
