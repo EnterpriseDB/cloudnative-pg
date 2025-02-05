@@ -672,7 +672,7 @@ jobs:
           SYFT_PLATFORM: 'linux/arm64'
         with:
           image: ${{ steps.docker-meta.outputs.tags }}
-          artifact-name: cloudnative-pg-${{ env.VERSION }}-arm64.spdx
+          artifact-name: cloudnative-pg-${{ env.VERSION }}-${{ env.SYFT_PLATFORM }}.spdx
           upload-artifact: true
           upload-artifact-retention: 7d
 
@@ -682,7 +682,7 @@ jobs:
           SYFT_PLATFORM: 'linux/amd64'
         with:
           image: ${{ steps.docker-meta.outputs.tags }}
-          artifact-name: cloudnative-pg-${{ env.VERSION }}-amd64.spdx
+          artifact-name: cloudnative-pg-${{ env.VERSION }}-${{ env.SYFT_PLATFORM }}.spdx
           upload-artifact: true
           upload-artifact-retention: 7d
 
