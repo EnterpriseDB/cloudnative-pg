@@ -700,6 +700,7 @@ jobs:
             # Clear-ups before retries
             sudo rm -rf /usr/local/bin/kind /usr/local/bin/kubectl
           command: |
+            set -e
             sudo apt-get update
             sudo apt-get install -y gettext-base
             sudo hack/setup-cluster.sh prepare /usr/local/bin
@@ -844,6 +845,7 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           command: |
+            set -e
             az extension add --allow-preview true --name aks-preview
             az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION }}
 
@@ -920,6 +922,7 @@ jobs:
           timeout_seconds: 300
           max_attempts: 3
           command: |
+            set -e
             sudo apt-get update
             sudo apt-get install -y gettext-base
       -
@@ -955,6 +958,7 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           command: |
+            set -e
             az extension add --allow-preview true --name aks-preview
             az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION }}
 
@@ -1001,6 +1005,7 @@ jobs:
           timeout_minutes: 27
           max_attempts: 1
           command: |
+            set -e
             STORAGECLASSNAME=default
             go install github.com/mikefarah/yq/v4@v4
             ROOK_BASE_URL=https://raw.githubusercontent.com/rook/rook/${{ env.ROOK_VERSION }}/deploy/examples
@@ -1191,6 +1196,7 @@ jobs:
           timeout_minutes: 5
           max_attempts: 3
           command: |
+            set -e
             az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION }}
             az storage account delete -y --resource-group ${{ secrets.AZURE_RESOURCEGROUP }} --name ${{ env.AZURE_STORAGE_ACCOUNT }}
 
@@ -1273,6 +1279,7 @@ jobs:
           timeout_seconds: 300
           max_attempts: 3
           command: |
+            set -e
             sudo apt-get update
             sudo apt-get install -y gettext-base
       -
@@ -1297,6 +1304,7 @@ jobs:
           timeout_minutes: 1
           max_attempts: 3
           command: |
+            set -e
             mkdir -p "$HOME/.local/bin"
             curl -sL "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" \
               | tar xz -C $HOME/.local/bin
@@ -1352,6 +1360,7 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           on_retry_command: |
+            set -e
             # Clean up buckets
             output=$( aws s3api delete-bucket --bucket "${VELERO_BUCKET_NAME}" --region "${AWS_REGION}" 2>&1 )
             status=$?
@@ -1656,6 +1665,7 @@ jobs:
           timeout_seconds: 300
           max_attempts: 3
           command: |
+            set -e
             sudo apt-get update
             sudo apt-get install -y gettext-base
       -
