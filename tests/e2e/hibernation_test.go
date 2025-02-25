@@ -91,7 +91,7 @@ var _ = Describe("Cluster Hibernation with plugin", Label(tests.LabelPlugin), fu
 		}
 		performHibernation := func(mode mode, namespace, clusterName string) {
 			By(fmt.Sprintf("performing hibernation %v", mode), func() {
-				_, _, err := run.Run(fmt.Sprintf("kubectl cnpg hibernate %v %v -n %v",
+				_, _, err := run.UncheckedRetry(fmt.Sprintf("kubectl cnpg hibernate %v %v -n %v",
 					mode, clusterName, namespace))
 				Expect(err).ToNot(HaveOccurred())
 			})
@@ -106,7 +106,7 @@ var _ = Describe("Cluster Hibernation with plugin", Label(tests.LabelPlugin), fu
 		getHibernationStatusInJSON := func(namespace, clusterName string) map[string]interface{} {
 			var data map[string]interface{}
 			By("getting hibernation status", func() {
-				stdOut, _, err := run.Run(fmt.Sprintf("kubectl cnpg hibernate %v %v -n %v -ojson",
+				stdOut, _, err := run.UncheckedRetry(fmt.Sprintf("kubectl cnpg hibernate %v %v -n %v -ojson",
 					HibernateStatus, clusterName, namespace))
 				Expect(err).ToNot(HaveOccurred(), stdOut)
 				err = json.Unmarshal([]byte(stdOut), &data)

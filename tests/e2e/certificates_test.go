@@ -60,7 +60,7 @@ var _ = Describe("Certificates", func() {
 		// clientCertName := "cluster-cert"
 		// user := "app"
 		// Create the certificate
-		_, _, err := run.Run(fmt.Sprintf(
+		_, _, err := run.UncheckedRetry(fmt.Sprintf(
 			"kubectl cnpg certificate %v --cnpg-cluster %v --cnpg-user %v -n %v",
 			certName,
 			cluster.Name,

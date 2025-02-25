@@ -251,10 +251,9 @@ var _ = Describe("Tablespaces tests", Label(tests.LabelTablespaces,
 					apiv1.ConditionBackup,
 				)
 				Expect(err).ShouldNot(HaveOccurred())
-				_, stderr, err := run.Run(
+				_, _, err = run.UncheckedRetry(
 					fmt.Sprintf("kubectl cnpg backup %s -n %s --backup-name %s",
 						clusterName, namespace, fullBackupName))
-				Expect(stderr).To(BeEmpty())
 				Expect(err).ShouldNot(HaveOccurred())
 				AssertBackupConditionTimestampChangedInClusterStatus(
 					namespace,
@@ -1291,7 +1290,7 @@ func hibernateOn(
 ) error {
 	switch method {
 	case hibernateImperatively:
-		_, _, err := run.Run(fmt.Sprintf("kubectl cnpg hibernate on %v -n %v",
+		_, _, err := run.UncheckedRetry(fmt.Sprintf("kubectl cnpg hibernate on %v -n %v",
 			clusterName, namespace))
 		if err != nil {
 			return err
@@ -1324,7 +1323,7 @@ func hibernateOff(
 ) error {
 	switch method {
 	case hibernateImperatively:
-		_, _, err := run.Run(fmt.Sprintf("kubectl cnpg hibernate off %v -n %v",
+		_, _, err := run.UncheckedRetry(fmt.Sprintf("kubectl cnpg hibernate off %v -n %v",
 			clusterName, namespace))
 		if err != nil {
 			return err

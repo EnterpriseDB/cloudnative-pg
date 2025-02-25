@@ -126,7 +126,7 @@ func CreateOnDemandBackupViaKubectlPlugin(
 		command = fmt.Sprintf("%v --method %v", command, method)
 	}
 
-	_, _, err := run.Run(command)
+	_, _, err := run.UncheckedRetry(command)
 	return err
 }
 

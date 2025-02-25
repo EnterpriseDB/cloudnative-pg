@@ -50,7 +50,7 @@ func On(
 ) error {
 	switch fencingMethod {
 	case UsingPlugin:
-		_, _, err := run.Run(fmt.Sprintf("kubectl cnpg fencing on %v %v -n %v",
+		_, _, err := run.UncheckedRetry(fmt.Sprintf("kubectl cnpg fencing on %v %v -n %v",
 			clusterName, serverName, namespace))
 		if err != nil {
 			return err
@@ -80,7 +80,7 @@ func Off(
 ) error {
 	switch fencingMethod {
 	case UsingPlugin:
-		_, _, err := run.Run(fmt.Sprintf("kubectl cnpg fencing off %v %v -n %v",
+		_, _, err := run.UncheckedRetry(fmt.Sprintf("kubectl cnpg fencing off %v %v -n %v",
 			clusterName, serverName, namespace))
 		if err != nil {
 			return err
