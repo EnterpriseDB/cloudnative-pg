@@ -60,6 +60,7 @@ func DrainPrimary(
 		// Draining the primary pod's node
 		var stdout, stderr string
 		Eventually(func() error {
+			GinkgoWriter.Println("Draining node", primaryNode)
 			cmd := fmt.Sprintf("kubectl drain %v --ignore-daemonsets --delete-emptydir-data --force --timeout=%ds",
 				primaryNode, timeoutSeconds)
 			stdout, stderr, err = run.Unchecked(cmd)

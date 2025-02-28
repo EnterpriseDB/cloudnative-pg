@@ -29,6 +29,7 @@ import (
 	"github.com/cloudnative-pg/cloudnative-pg/tests"
 	"github.com/cloudnative-pg/cloudnative-pg/tests/utils/clusterutils"
 	"github.com/cloudnative-pg/cloudnative-pg/tests/utils/nodes"
+	"github.com/cloudnative-pg/cloudnative-pg/tests/utils/operator"
 	"github.com/cloudnative-pg/cloudnative-pg/tests/utils/pods"
 	"github.com/cloudnative-pg/cloudnative-pg/tests/utils/postgres"
 	"github.com/cloudnative-pg/cloudnative-pg/tests/utils/run"
@@ -409,12 +410,28 @@ var _ = Describe("E2E Drain Node", Serial, Label(tests.LabelDisruptive, tests.La
 				Expect(err).ToNot(HaveOccurred())
 			})
 
+			By("having debug info before drain on the operator pod node", func() {
+				operatorPod, err := operator.GetPod(env.Ctx, env.Client)
+				if err != nil {
+					Fail("Could not get operator pod")
+				}
+				GinkgoWriter.Println("Operator pod node:", operatorPod.Spec.NodeName)
+			})
+
 			// Drain the node containing the primary pod. Pods should be moved
 			// to the node we've just uncordoned
 			nodes.DrainPrimary(
 				env.Ctx, env.Client,
 				namespace, clusterName, testTimeouts[testsUtils.DrainNode],
 			)
+
+			By("having debug info after drain on the operator pod node", func() {
+				operatorPod, err := operator.GetPod(env.Ctx, env.Client)
+				if err != nil {
+					Fail("Could not get operator pod")
+				}
+				GinkgoWriter.Println("Operator pod node:", operatorPod.Spec.NodeName)
+			})
 
 			// Expect pods to be recreated and to be ready
 			AssertClusterIsReady(namespace, clusterName, testTimeouts[testsUtils.ClusterIsReady], env)
