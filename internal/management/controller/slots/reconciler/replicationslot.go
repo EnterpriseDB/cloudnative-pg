@@ -36,8 +36,12 @@ func ReconcileReplicationSlots(
 	db *sql.DB,
 	cluster *apiv1.Cluster,
 ) (reconcile.Result, error) {
+	contextLogger := log.FromContext(ctx)
 	if cluster.Spec.ReplicationSlots == nil ||
 		cluster.Spec.ReplicationSlots.HighAvailability == nil {
+		contextLogger.Debug("Skipping replication slots reconciliation because the feature is disabled",
+			"instanceName", instanceName)
+
 		return reconcile.Result{}, nil
 	}
 
@@ -49,6 +53,9 @@ func ReconcileReplicationSlots(
 	// we also clean up the slots that fall under the user defined replication slots feature here.
 	// TODO: split-out user defined replication slots code
 	if !cluster.Spec.ReplicationSlots.HighAvailability.GetEnabled() {
+		contextLogger.Debug("Dropping replslots",
+			"instanceName", instanceName,
+		)
 		return dropReplicationSlots(ctx, db, cluster, isPrimary)
 	}
 
@@ -149,6 +156,7 @@ func dropReplicationSlots(
 	if err != nil {
 		return reconcile.Result{}, err
 	}
+	contextLogger.Info("Dropping replication slots", "slots", slots)
 
 	needToReschedule := false
 	for _, slot := range slots.Items {
@@ -163,12 +171,12 @@ func dropReplicationSlots(
 		}
 
 		if slot.Active {
-			contextLogger.Trace("Skipping deletion of replication slot because it is active",
+			contextLogger.Debug("Skipping deletion of replication slot because it is active",
 				"slot", slot)
 			needToReschedule = true
 			continue
 		}
-		contextLogger.Trace("Attempt to delete replication slot",
+		contextLogger.Debug("Attempt to delete replication slot",
 			"slot", slot)
 		if err := infrastructure.Delete(ctx, db, slot); err != nil {
 			return reconcile.Result{}, fmt.Errorf("while disabling standby HA replication slots: %w", err)

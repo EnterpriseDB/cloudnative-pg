@@ -33,7 +33,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Replication Slot", Label(tests.LabelReplication), func() {
+var _ = Describe("Replication Slot", Label(tests.LabelReplication, "slots"), func() {
 	const (
 		namespacePrefix  = "replication-slot-e2e"
 		clusterName      = "cluster-pg-replication-slot"
@@ -164,35 +164,29 @@ var _ = Describe("Replication Slot", Label(tests.LabelReplication), func() {
 			}, 10, 2).Should(BeFalse())
 		})
 
-		if env.PostgresVersion == 11 {
-			// We need to take into account the fact that on PostgreSQL 11
-			// it is required to rolling restart the cluster to
-			// enable or disable the feature once the cluster is created.
-			AssertClusterRollingRestart(namespace, clusterName)
-		}
-
 		By("verifying slots have been removed from the cluster's pods", func() {
 			pods, err := clusterutils.ListPods(env.Ctx, env.Client, namespace, clusterName)
+			GinkgoWriter.Println("pods:", pods)
 			Expect(err).ToNot(HaveOccurred())
 			for _, pod := range pods.Items {
-				Eventually(func(g Gomega) error {
+				GinkgoWriter.Println("checking pod:", pod.GetName())
+				Eventually(func(g Gomega) {
 					slotOnPod, err := replicationslot.GetReplicationSlotsOnPod(
 						env.Ctx, env.Client, env.Interface, env.RestClientConfig,
 						namespace, pod.GetName(), postgres.AppDBName)
-					if err != nil {
-						return err
-					}
+					g.Expect(err).ToNot(HaveOccurred())
+					GinkgoWriter.Println("slotOnPod:", slotOnPod)
 
 					// on the primary we should retain the user created slot
 					if specs.IsPodPrimary(pod) {
+						GinkgoWriter.Println("checking primary pod:", pod.GetName())
 						g.Expect(slotOnPod).To(HaveLen(1))
 						g.Expect(slotOnPod).To(ContainElement(userPhysicalSlot))
-						return nil
+						return
 					}
 					// on replicas instead we should clean up everything
 					g.Expect(slotOnPod).To(BeEmpty())
-					return nil
-				}, 90, 2).ShouldNot(HaveOccurred())
+				}, 90).WithPolling(2 * time.Second).Should(Succeed())
 			}
 		})
 	})
