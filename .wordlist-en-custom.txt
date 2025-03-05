@@ -894,6 +894,7 @@ json
 jsonpath
 kb
 kbytes
+keepalive
 kms
 kube
 kubebuilder
