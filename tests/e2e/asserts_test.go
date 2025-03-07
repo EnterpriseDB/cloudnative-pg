@@ -668,12 +668,22 @@ func AssertStandbysFollowPromotion(namespace string, clusterName string, timeout
 				Namespace: namespace,
 				Name:      podName,
 			}
+			primary_conninfo_query := "SHOW primary_conninfo"
 			query := "SELECT count(*) > 0 FROM tps.tl WHERE timeline = '00000002'"
 			Eventually(func() (string, error) {
 				pod := &corev1.Pod{}
 				if err := env.Client.Get(env.Ctx, podNamespacedName, pod); err != nil {
 					return "", err
 				}
+				connout, _, connerr := exec.QueryInInstancePod(
+					env.Ctx, env.Client, env.Interface, env.RestClientConfig,
+					exec.PodLocator{
+						Namespace: pod.Namespace,
+						PodName:   pod.Name,
+					},
+					postgres.AppDBName,
+					primary_conninfo_query)
+				GinkgoWriter.Println(strings.TrimSpace(connout), connerr)
 				out, _, err := exec.QueryInInstancePod(
 					env.Ctx, env.Client, env.Interface, env.RestClientConfig,
 					exec.PodLocator{
