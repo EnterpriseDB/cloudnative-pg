@@ -56,6 +56,7 @@ func (sr *Replicator) Start(ctx context.Context) error {
 		}()
 
 		for {
+			contextLog.Debug("IAMHERE1")
 			select {
 			case <-ctx.Done():
 				return
@@ -63,6 +64,7 @@ func (sr *Replicator) Start(ctx context.Context) error {
 			case <-ticker.C:
 			}
 
+			contextLog.Debug("IAMHERE2")
 			// If replication is disabled stop the timer,
 			// the process will resume through the wakeUp channel if necessary
 			if config == nil || !config.GetEnabled() {
@@ -73,6 +75,7 @@ func (sr *Replicator) Start(ctx context.Context) error {
 				continue
 			}
 
+			contextLog.Debug("IAMHERE3")
 			// Update the ticker if the update interval has changed
 			newUpdateInterval := config.GetUpdateInterval()
 			if updateInterval != newUpdateInterval {
@@ -80,6 +83,7 @@ func (sr *Replicator) Start(ctx context.Context) error {
 				updateInterval = newUpdateInterval
 			}
 
+			contextLog.Debug("IAMHERE4")
 			err := sr.reconcile(ctx, config)
 			if err != nil {
 				contextLog.Warning("synchronizing replication slots", "err", err)
@@ -103,7 +107,7 @@ func (sr *Replicator) reconcile(ctx context.Context, config *apiv1.ReplicationSl
 	contextLog := log.FromContext(ctx)
 
 	if sr.instance.IsFenced() {
-		contextLog.Trace("Replication slots reconciliation skipped: instance is fenced.")
+		contextLog.Debug("Replication slots reconciliation skipped: instance is fenced.")
 		return nil
 	}
 
@@ -117,7 +121,7 @@ func (sr *Replicator) reconcile(ctx context.Context, config *apiv1.ReplicationSl
 	if err != nil {
 		return err
 	}
-	contextLog.Trace("Invoked",
+	contextLog.Debug("Invoked",
 		"primary", primaryPool.GetDsn("postgres"),
 		"local", localPool.GetDsn("postgres"),
 		"podName", sr.instance.GetPodName(),
@@ -147,15 +151,20 @@ func synchronizeReplicationSlots(
 	if err != nil {
 		return fmt.Errorf("getting replication slot status from primary: %v", err)
 	}
-	contextLog.Trace("primary slot status", "slotsInPrimary", slotsInPrimary)
+	contextLog.Debug("primary slot status", "slotsInPrimary", slotsInPrimary)
 
 	slotsInLocal, err := infrastructure.List(ctx, localDB, config)
 	if err != nil {
 		return fmt.Errorf("getting replication slot status from local: %v", err)
 	}
-	contextLog.Trace("local slot status", "slotsInLocal", slotsInLocal)
+	contextLog.Debug("local slot status", "slotsInLocal", slotsInLocal)
 
 	mySlotName := config.HighAvailability.GetSlotNameFromInstanceName(podName)
+
+	contextLog.Debug("Synchronizing replication slots",
+		"primary", slotsInPrimary,
+		"local", slotsInLocal,
+		"mySlotName", mySlotName)
 
 	for _, slot := range slotsInPrimary.Items {
 		if slot.SlotName == mySlotName {

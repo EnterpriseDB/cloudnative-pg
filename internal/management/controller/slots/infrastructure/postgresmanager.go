@@ -83,7 +83,8 @@ func Update(ctx context.Context, db *sql.DB, slot ReplicationSlot) error {
 		return nil
 	}
 
-	_, err := db.ExecContext(ctx, "SELECT pg_catalog.pg_replication_slot_advance($1, $2)", slot.SlotName, slot.RestartLSN)
+	_, err := db.ExecContext(ctx, "SELECT pg_catalog.pg_replication_slot_advance($1, $2)", slot.SlotName,
+		slot.RestartLSN)
 	return err
 }
 
@@ -100,7 +101,7 @@ func Create(ctx context.Context, db *sql.DB, slot ReplicationSlot) error {
 // Delete the replication slot
 func Delete(ctx context.Context, db *sql.DB, slot ReplicationSlot) error {
 	contextLog := log.FromContext(ctx).WithName("dropSlot")
-	contextLog.Trace("Invoked", "slot", slot)
+	contextLog.Debug("Invoked", "slot", slot)
 	if slot.Active {
 		return nil
 	}

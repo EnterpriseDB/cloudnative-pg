@@ -230,6 +230,7 @@ func (r *InstanceReconciler) Reconcile(
 			return reconcile.Result{}, fmt.Errorf("cannot apply new PostgreSQL configuration: %w", err)
 		}
 	}
+	contextLogger.Debug("IAMHERE11")
 
 	// IMPORTANT
 	// From now on, the database can be assumed as running. Every operation
@@ -241,6 +242,7 @@ func (r *InstanceReconciler) Reconcile(
 	if err != nil {
 		return reconcile.Result{}, fmt.Errorf("while getting the postgres connection: %w", err)
 	}
+	contextLogger.Debug("IAMHERE12")
 	if result, err := reconciler.ReconcileReplicationSlots(
 		ctx,
 		r.instance.GetPodName(),
