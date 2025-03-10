@@ -22,6 +22,7 @@ import (
 	"github.com/onsi/ginkgo/v2/types"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/cloudnative-pg/cloudnative-pg/tests"
@@ -67,6 +68,12 @@ var _ = Describe("Config support", Serial, Ordered, Label(tests.LabelDisruptive,
 		if !apierrors.IsNotFound(err) {
 			Expect(err).ToNot(HaveOccurred())
 		}
+		initialConfigMap.SetResourceVersion("")
+		initialConfigMap.SetUID("")
+		initialConfigMap.SetCreationTimestamp(metav1.Time{})
+		initialConfigMap.SetSelfLink("")
+		initialConfigMap.SetGeneration(0)
+		initialConfigMap.SetManagedFields(nil)
 
 		// Save the initial secret
 		initialSecret = &corev1.Secret{}
@@ -75,6 +82,12 @@ var _ = Describe("Config support", Serial, Ordered, Label(tests.LabelDisruptive,
 		if !apierrors.IsNotFound(err) {
 			Expect(err).ToNot(HaveOccurred())
 		}
+		initialSecret.SetResourceVersion("")
+		initialSecret.SetUID("")
+		initialSecret.SetCreationTimestamp(metav1.Time{})
+		initialSecret.SetSelfLink("")
+		initialSecret.SetGeneration(0)
+		initialSecret.SetManagedFields(nil)
 	})
 
 	AfterAll(func() {
