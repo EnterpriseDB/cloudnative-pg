@@ -30,7 +30,7 @@ spec:
                   name: cluster-fast-switchover-app
                   key: username
             - name: DATABASE_URL
-              value: "postgres://$(USER):$(PASSWORD)@cluster-fast-switchover-rw/app?sslmode=require&connect_timeout=2"
+              value: "postgres://$(USER):$(PASSWORD)@cluster-fast-switchover-rw/app?sslmode=require&connect_timeout=2&tcp_user_timeout=5000"
             - name: SQL_QUERY
               value: "insert into tps.tl(source) values ('hey');"
           ports:
@@ -51,4 +51,3 @@ spec:
   selector:
     app: webtest
   type: ClusterIP
-
