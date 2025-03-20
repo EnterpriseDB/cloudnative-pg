@@ -17,6 +17,7 @@ limitations under the License.
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -24,9 +25,11 @@ import (
 
 	"github.com/cloudnative-pg/machinery/pkg/image/reference"
 	"github.com/cloudnative-pg/machinery/pkg/postgres/version"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1 "github.com/cloudnative-pg/cloudnative-pg/api/v1"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/specs"
@@ -141,15 +144,10 @@ var _ = Describe("Postgres Major Upgrade", Label(tests.LabelPostgresMajorUpgrade
 		return cluster
 	}
 
-	BeforeEach(func() {
-		if testLevelEnv.Depth < int(level) {
-			Skip("Test depth is lower than the amount requested for this test")
-		}
-
-		// We only want to run this test if the current and target major versions are different. We gather the
-		// current image from the environment and compare it to the target image, which is the operator default one.
+	var determineVersionsForTesting = func() (uint64, uint64) {
 		currentImage := os.Getenv("POSTGRES_IMG")
 		Expect(currentImage).ToNot(BeEmpty())
+
 		currentVersion, err := version.FromTag(reference.New(currentImage).Tag)
 		Expect(err).NotTo(HaveOccurred())
 		currentMajor := currentVersion.Major()
@@ -158,25 +156,19 @@ var _ = Describe("Postgres Major Upgrade", Label(tests.LabelPostgresMajorUpgrade
 		Expect(err).ToNot(HaveOccurred())
 		targetMajor := targetVersion.Major()
 
+		// If same version, choose a previous one for testing
 		if currentMajor == targetMajor {
-			// We want to test the upgrade from a previous major version. If we are already at the target major,
-			// instead of skipping the test, we choose a random major version among the 4 previous ones.
 			currentMajor = targetMajor - (uint64(rand.Int() % 4)) - 1
-			GinkgoWriter.Printf("Current major version is the same as the target one.\n"+
-				"Using %v as the current major version instead.\n",
-				currentMajor)
+			GinkgoWriter.Printf("Using %v as the current major version instead.\n", currentMajor)
 		}
 
-		namespace, err = env.CreateUniqueTestNamespace(env.Ctx, env.Client, namespacePrefix)
-		Expect(err).ToNot(HaveOccurred())
+		return currentMajor, targetMajor
+	}
 
-		storageClass := os.Getenv("E2E_DEFAULT_STORAGE_CLASS")
-		Expect(storageClass).ToNot(BeEmpty())
-
-		// We cannot use generated entries in the DescribeTable, so we use the scenario key as a constant, but
-		// define the actual content here.
-		// See https://onsi.github.io/ginkgo/#mental-model-table-specs-are-just-syntactic-sugar
-		scenarios = map[string]*scenario{
+	var buildScenarios = func(
+		namespace string, storageClass string, currentMajor, targetMajor uint64,
+	) map[string]*scenario {
+		return map[string]*scenario{
 			postgisEntry: {
 				startingCluster: generatePostGISCluster(namespace, storageClass, int(currentMajor)),
 				startingMajor:   int(currentMajor),
@@ -196,6 +188,87 @@ var _ = Describe("Postgres Major Upgrade", Label(tests.LabelPostgresMajorUpgrade
 				targetMajor:     int(targetMajor),
 			},
 		}
+	}
+
+	var verifyPodsChanged = func(
+		ctx context.Context, client client.Client, cluster *v1.Cluster, oldPodsUUIDs []types.UID,
+	) {
+		Eventually(func(g Gomega) {
+			podList, err := clusterutils.ListPods(ctx, client, cluster.Name, cluster.Namespace)
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(podList.Items).To(HaveLen(len(oldPodsUUIDs)))
+			for _, pod := range podList.Items {
+				g.Expect(oldPodsUUIDs).NotTo(ContainElement(pod.UID))
+			}
+		}).WithTimeout(5 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
+	}
+
+	var verifyPVCsChanged = func(
+		ctx context.Context, client client.Client, cluster *v1.Cluster, oldPVCsUUIDs []types.UID,
+	) {
+		Eventually(func(g Gomega) {
+			pvcList, err := storage.GetPVCList(env.Ctx, env.Client, cluster.Namespace)
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(pvcList.Items).To(HaveLen(len(oldPVCsUUIDs)))
+			for _, pvc := range pvcList.Items {
+				if pvc.Labels[utils.ClusterInstanceRoleLabelName] == specs.ClusterRoleLabelReplica {
+					g.Expect(oldPVCsUUIDs).NotTo(ContainElement(pvc.UID))
+				} else {
+					g.Expect(oldPVCsUUIDs).To(ContainElement(pvc.UID))
+				}
+			}
+		}).WithTimeout(5 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
+	}
+
+	var verifyPostgresVersion = func(
+		ctx context.Context, client client.Client, primary *corev1.Pod, oldStdOut string, targetMajor int,
+	) {
+		Eventually(func(g Gomega) {
+			stdOut, stdErr, err := exec.EventuallyExecQueryInInstancePod(env.Ctx, env.Client, env.Interface,
+				env.RestClientConfig,
+				exec.PodLocator{Namespace: primary.GetNamespace(), PodName: primary.GetName()}, postgres.AppDBName,
+				"SELECT version();", 60, objects.PollingTime)
+			g.Expect(err).ToNot(HaveOccurred(), "failed to execute version query")
+			g.Expect(stdErr).To(BeEmpty(), "unexpected stderr output when checking version")
+			g.Expect(stdOut).ToNot(Equal(oldStdOut), "postgres version did not change")
+			g.Expect(stdOut).To(ContainSubstring(strconv.Itoa(targetMajor)),
+				fmt.Sprintf("version string doesn't contain expected major version %d: %s", targetMajor, stdOut))
+		}).WithTimeout(5 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
+	}
+
+	var verifyCleanupAfterUpgrade = func(ctx context.Context, client client.Client, primary *corev1.Pod) {
+		shouldHaveBeenDeleted := []string{
+			"/var/lib/postgresql/data/pgdata/pg_upgrade_output.d",
+			"/var/lib/postgresql/data/pgdata-new",
+			"/var/lib/postgresql/data/pgwal-new",
+		}
+		timeout := time.Second * 20
+		for _, path := range shouldHaveBeenDeleted {
+			_, stdErr, err := exec.CommandInInstancePod(env.Ctx, env.Client, env.Interface, env.RestClientConfig,
+				exec.PodLocator{Namespace: primary.GetNamespace(), PodName: primary.GetName()}, &timeout,
+				"stat", path)
+			Expect(err).To(HaveOccurred(), "path: %s", path)
+			Expect(stdErr).To(ContainSubstring("No such file or directory"), "path: %s", path)
+		}
+	}
+
+	BeforeEach(func() {
+		if testLevelEnv.Depth < int(level) {
+			Skip("Test depth is lower than the amount requested for this test")
+		}
+
+		currentMajor, targetMajor := determineVersionsForTesting()
+		var err error
+		namespace, err = env.CreateUniqueTestNamespace(env.Ctx, env.Client, namespacePrefix)
+		Expect(err).ToNot(HaveOccurred())
+
+		storageClass := os.Getenv("E2E_DEFAULT_STORAGE_CLASS")
+		Expect(storageClass).ToNot(BeEmpty())
+
+		// We cannot use generated entries in the DescribeTable, so we use the scenario key as a constant, but
+		// define the actual content here.
+		// See https://onsi.github.io/ginkgo/#mental-model-table-specs-are-just-syntactic-sugar
+		scenarios = buildScenarios(namespace, storageClass, currentMajor, targetMajor)
 	})
 
 	DescribeTable("can upgrade a Cluster to a newer major version", func(scenarioName string) {
@@ -256,62 +329,21 @@ var _ = Describe("Postgres Major Upgrade", Label(tests.LabelPostgresMajorUpgrade
 		// The upgrade destroys all the original pods and creates new ones. We want to make sure that we have
 		// the same amount of pods as before, but with different UUIDs.
 		By("Verifying the pods UUIDs have changed")
-		Eventually(func(g Gomega) {
-			podList, err := clusterutils.ListPods(env.Ctx, env.Client, cluster.Name, cluster.Namespace)
-			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(podList.Items).To(HaveLen(len(oldPodsUUIDs)))
-			for _, pod := range podList.Items {
-				g.Expect(oldPVCsUUIDs).NotTo(ContainElement(pod.UID))
-			}
-		}).WithTimeout(5 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
+		verifyPodsChanged(env.Ctx, env.Client, cluster, oldPodsUUIDs)
 
 		// The upgrade destroys all the original PVCs and creates new ones, except for the ones associated to the
 		// primary. We want to make sure that we have the same amount of PVCs as before, but with different UUIDs,
 		// which should be the same instead for the primary PVCs.
 		By("Verifying the replicas' PVCs have changed")
-		Eventually(func(g Gomega) {
-			pvcList, err := storage.GetPVCList(env.Ctx, env.Client, cluster.Namespace)
-			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(pvcList.Items).To(HaveLen(len(oldPVCsUUIDs)))
-			for _, pvc := range pvcList.Items {
-				if pvc.Labels[utils.ClusterInstanceRoleLabelName] == specs.ClusterRoleLabelReplica {
-					g.Expect(oldPVCsUUIDs).NotTo(ContainElement(pvc.UID))
-				} else {
-					g.Expect(oldPVCsUUIDs).To(ContainElement(pvc.UID))
-				}
-			}
-		}).WithTimeout(5 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
+		verifyPVCsChanged(env.Ctx, env.Client, cluster, oldPVCsUUIDs)
 
 		// Check that the version has been updated
 		By("Verifying the cluster is running the target version")
-		Eventually(func(g Gomega) {
-			stdOut, stdErr, err := exec.EventuallyExecQueryInInstancePod(env.Ctx, env.Client, env.Interface,
-				env.RestClientConfig,
-				exec.PodLocator{Namespace: primary.GetNamespace(), PodName: primary.GetName()}, postgres.AppDBName,
-				"SELECT version();", 60, objects.PollingTime)
-			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(stdErr).To(BeEmpty())
-			g.Expect(stdOut).ToNot(Equal(oldStdOut))
-			g.Expect(stdOut).To(ContainSubstring(strconv.Itoa(scenario.targetMajor)))
-		}).WithTimeout(5 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
+		verifyPostgresVersion(env.Ctx, env.Client, primary, oldStdOut, scenario.targetMajor)
 
 		// Expect temporary files to be deleted
 		By("Checking no leftovers exist from the upgrade")
-		shouldHaveBeenDeleted := []string{
-			"/var/lib/postgresql/data/pgdata/pg_upgrade_server.log",
-			"/var/lib/postgresql/data/pgdata/pg_upgrade_internal.log",
-			"/var/lib/postgresql/data/pgdata/pg_upgrade_utility.log",
-			"/var/lib/postgresql/data/pgdata-new",
-			"/var/lib/postgresql/data/pgwal-new",
-		}
-		timeout := time.Second * 20
-		for _, path := range shouldHaveBeenDeleted {
-			_, stdErr, err := exec.CommandInInstancePod(env.Ctx, env.Client, env.Interface, env.RestClientConfig,
-				exec.PodLocator{Namespace: primary.GetNamespace(), PodName: primary.GetName()}, &timeout,
-				"stat", path)
-			Expect(err).To(HaveOccurred(), "path: %s", path)
-			Expect(stdErr).To(ContainSubstring("No such file or directory"), "path: %s", path)
-		}
+		verifyCleanupAfterUpgrade(env.Ctx, env.Client, primary)
 	},
 		Entry("PostGIS", postgisEntry),
 		Entry("PostgreSQL", postgresqlEntry),
