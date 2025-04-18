@@ -23,8 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloudnative-pg/machinery/pkg/postgres/version"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -37,7 +35,7 @@ var _ = Describe("PostgreSQL configuration creation", func() {
 	It("apply the default settings", func() {
 		info := ConfigurationInfo{
 			Settings:           CnpgConfigurationSettings,
-			Version:            version.New(10, 0),
+			MajorVersion:       17,
 			UserSettings:       settings,
 			IncludingMandatory: true,
 		}
@@ -48,8 +46,8 @@ var _ = Describe("PostgreSQL configuration creation", func() {
 
 	It("enforce the mandatory values", func() {
 		info := ConfigurationInfo{
-			Settings: CnpgConfigurationSettings,
-			Version:  version.New(10, 0),
+			Settings:     CnpgConfigurationSettings,
+			MajorVersion: 17,
 			UserSettings: map[string]string{
 				"hot_standby": "off",
 			},
@@ -62,7 +60,7 @@ var _ = Describe("PostgreSQL configuration creation", func() {
 	It("generate a config file", func() {
 		info := ConfigurationInfo{
 			Settings:           CnpgConfigurationSettings,
-			Version:            version.New(10, 0),
+			MajorVersion:       17,
 			UserSettings:       settings,
 			IncludingMandatory: true,
 		}
@@ -83,24 +81,11 @@ var _ = Describe("PostgreSQL configuration creation", func() {
 		Expect(confFile).To(ContainSubstring("log_destination = 'stderr'\nshared_buffers = '128KB'\n"))
 	})
 
-	When("version is 10", func() {
-		It("will use appropriate settings", func() {
-			info := ConfigurationInfo{
-				Settings:           CnpgConfigurationSettings,
-				Version:            version.New(10, 0),
-				UserSettings:       settings,
-				IncludingMandatory: true,
-			}
-			config := CreatePostgresqlConfiguration(info)
-			Expect(config.GetConfig("wal_keep_segments")).To(Equal("32"))
-		})
-	})
-
 	When("version is 13", func() {
 		It("will use appropriate settings", func() {
 			info := ConfigurationInfo{
 				Settings:           CnpgConfigurationSettings,
-				Version:            version.New(13, 0),
+				MajorVersion:       13,
 				UserSettings:       settings,
 				IncludingMandatory: true,
 			}
@@ -115,7 +100,7 @@ var _ = Describe("PostgreSQL configuration creation", func() {
 		It("will set archive_mode to always", func() {
 			info := ConfigurationInfo{
 				Settings:           CnpgConfigurationSettings,
-				Version:            version.New(13, 0),
+				MajorVersion:       13,
 				UserSettings:       settings,
 				IncludingMandatory: true,
 				IsReplicaCluster:   true,
@@ -129,7 +114,7 @@ var _ = Describe("PostgreSQL configuration creation", func() {
 		It("will set archive_mode to on", func() {
 			info := ConfigurationInfo{
 				Settings:           CnpgConfigurationSettings,
-				Version:            version.New(13, 0),
+				MajorVersion:       13,
 				UserSettings:       settings,
 				IncludingMandatory: true,
 				IsReplicaCluster:   false,
@@ -142,7 +127,7 @@ var _ = Describe("PostgreSQL configuration creation", func() {
 	It("adds shared_preload_library correctly", func() {
 		info := ConfigurationInfo{
 			Settings:                         CnpgConfigurationSettings,
-			Version:                          version.New(13, 0),
+			MajorVersion:                     13,
 			IncludingMandatory:               true,
 			IncludingSharedPreloadLibraries:  true,
 			AdditionalSharedPreloadLibraries: []string{"some_library", "another_library", ""},
@@ -156,8 +141,8 @@ var _ = Describe("PostgreSQL configuration creation", func() {
 
 	It("checks if PreserveFixedSettingsFromUser works properly", func() {
 		info := ConfigurationInfo{
-			Settings: CnpgConfigurationSettings,
-			Version:  version.New(10, 0),
+			Settings:     CnpgConfigurationSettings,
+			MajorVersion: 13,
 			UserSettings: map[string]string{
 				"ssl":                  "off",
 				"recovery_target_name": "test",
@@ -200,7 +185,7 @@ var _ = Describe("PostgreSQL configuration creation", func() {
 			It("can properly set allow_alter_system to on", func() {
 				info := ConfigurationInfo{
 					IsAlterSystemEnabled: true,
-					Version:              version.New(17, 0),
+					MajorVersion:         17,
 					IncludingMandatory:   true,
 				}
 				config := CreatePostgresqlConfiguration(info)
@@ -210,7 +195,7 @@ var _ = Describe("PostgreSQL configuration creation", func() {
 			It("can properly set allow_alter_system to off", func() {
 				info := ConfigurationInfo{
 					IsAlterSystemEnabled: false,
-					Version:              version.New(18, 0),
+					MajorVersion:         18,
 					IncludingMandatory:   true,
 				}
 				config := CreatePostgresqlConfiguration(info)
@@ -222,7 +207,7 @@ var _ = Describe("PostgreSQL configuration creation", func() {
 			It("should not set allow_alter_system", func() {
 				info := ConfigurationInfo{
 					IsAlterSystemEnabled: false,
-					Version:              version.New(14, 0),
+					MajorVersion:         14,
 					IncludingMandatory:   true,
 				}
 				config := CreatePostgresqlConfiguration(info)
@@ -233,7 +218,7 @@ var _ = Describe("PostgreSQL configuration creation", func() {
 			It("should not set allow_alter_system", func() {
 				info := ConfigurationInfo{
 					IsAlterSystemEnabled: true,
-					Version:              version.New(14, 0),
+					MajorVersion:         14,
 					IncludingMandatory:   true,
 				}
 				config := CreatePostgresqlConfiguration(info)
@@ -312,7 +297,7 @@ var _ = Describe("pgaudit", func() {
 	It("adds pgaudit to shared_preload_library", func() {
 		info := ConfigurationInfo{
 			Settings:                        CnpgConfigurationSettings,
-			Version:                         version.New(13, 0),
+			MajorVersion:                    13,
 			UserSettings:                    map[string]string{"pgaudit.something": "something"},
 			IncludingSharedPreloadLibraries: true,
 			IncludingMandatory:              true,
@@ -329,7 +314,7 @@ var _ = Describe("pgaudit", func() {
 	It("adds pg_stat_statements to shared_preload_library", func() {
 		info := ConfigurationInfo{
 			Settings:                        CnpgConfigurationSettings,
-			Version:                         version.New(13, 0),
+			MajorVersion:                    13,
 			UserSettings:                    map[string]string{"pg_stat_statements.something": "something"},
 			IncludingMandatory:              true,
 			IncludingSharedPreloadLibraries: true,
@@ -345,8 +330,8 @@ var _ = Describe("pgaudit", func() {
 
 	It("adds pg_stat_statements and pgaudit to shared_preload_library", func() {
 		info := ConfigurationInfo{
-			Settings: CnpgConfigurationSettings,
-			Version:  version.New(13, 0),
+			Settings:     CnpgConfigurationSettings,
+			MajorVersion: 13,
 			UserSettings: map[string]string{
 				"pg_stat_statements.something": "something",
 				"pgaudit.somethingelse":        "somethingelse",
@@ -366,7 +351,7 @@ var _ = Describe("pg_failover_slots", func() {
 	It("adds pg_failover_slots to shared_preload_library", func() {
 		info := ConfigurationInfo{
 			Settings:                        CnpgConfigurationSettings,
-			Version:                         version.New(13, 0),
+			MajorVersion:                    13,
 			UserSettings:                    map[string]string{"pg_failover_slots.something": "something"},
 			IncludingMandatory:              true,
 			IncludingSharedPreloadLibraries: true,
@@ -383,7 +368,7 @@ var _ = Describe("recovery_min_apply_delay", func() {
 	It("is not added when zero", func() {
 		info := ConfigurationInfo{
 			Settings:                        CnpgConfigurationSettings,
-			Version:                         version.New(13, 0),
+			MajorVersion:                    13,
 			UserSettings:                    map[string]string{"pg_failover_slots.something": "something"},
 			IncludingMandatory:              true,
 			IncludingSharedPreloadLibraries: true,
@@ -396,7 +381,7 @@ var _ = Describe("recovery_min_apply_delay", func() {
 	It("is added to the configuration when specified", func() {
 		info := ConfigurationInfo{
 			Settings:                        CnpgConfigurationSettings,
-			Version:                         version.New(13, 0),
+			MajorVersion:                    13,
 			UserSettings:                    map[string]string{"pg_failover_slots.something": "something"},
 			IncludingMandatory:              true,
 			IncludingSharedPreloadLibraries: true,
