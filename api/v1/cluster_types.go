@@ -940,8 +940,7 @@ type ClusterStatus struct {
 	// +optional
 	Image string `json:"image,omitempty"`
 
-	// PGDataImageInfo contains the details on the image used to
-	// run the PostgreSQL instance.
+	// PGDataImageInfo contains the details of the latest image that has run on the current data directory.
 	// +optional
 	PGDataImageInfo *ImageInfo `json:"pgDataImageInfo,omitempty"`
 
