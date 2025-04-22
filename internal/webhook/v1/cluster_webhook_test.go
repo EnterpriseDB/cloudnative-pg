@@ -1207,8 +1207,17 @@ var _ = Describe("validate image name change", func() {
 
 	Context("using image name", func() {
 		It("doesn't complain with no changes", func() {
+			defaultVersion, err := pgversion.FromTag(reference.New(versions.DefaultImageName).Tag)
+			Expect(err).ToNot(HaveOccurred())
 			clusterOld := &apiv1.Cluster{
 				Spec: apiv1.ClusterSpec{},
+				Status: apiv1.ClusterStatus{
+					Image: versions.DefaultImageName,
+					PGDataImageInfo: &apiv1.ImageInfo{
+						Image:        versions.DefaultImageName,
+						MajorVersion: int(defaultVersion.Major()),
+					},
+				},
 			}
 			clusterNew := &apiv1.Cluster{
 				Spec: apiv1.ClusterSpec{},
@@ -1220,6 +1229,13 @@ var _ = Describe("validate image name change", func() {
 			clusterOld := &apiv1.Cluster{
 				Spec: apiv1.ClusterSpec{
 					ImageName: "postgres:17.0",
+				},
+				Status: apiv1.ClusterStatus{
+					Image: "test",
+					PGDataImageInfo: &apiv1.ImageInfo{
+						Image:        "postgres:17.0",
+						MajorVersion: 17,
+					},
 				},
 			}
 			clusterNew := &apiv1.Cluster{
@@ -1234,6 +1250,13 @@ var _ = Describe("validate image name change", func() {
 			clusterOld := &apiv1.Cluster{
 				Spec: apiv1.ClusterSpec{
 					ImageName: "postgres:17.1",
+				},
+				Status: apiv1.ClusterStatus{
+					Image: "test",
+					PGDataImageInfo: &apiv1.ImageInfo{
+						Image:        "postgres:17.1",
+						MajorVersion: 17,
+					},
 				},
 			}
 			clusterNew := &apiv1.Cluster{
@@ -1254,6 +1277,13 @@ var _ = Describe("validate image name change", func() {
 							Kind: "ImageCatalog",
 						},
 						Major: 16,
+					},
+				},
+				Status: apiv1.ClusterStatus{
+					Image: "test",
+					PGDataImageInfo: &apiv1.ImageInfo{
+						Image:        "test",
+						MajorVersion: 16,
 					},
 				},
 			}
@@ -1277,6 +1307,13 @@ var _ = Describe("validate image name change", func() {
 				Spec: apiv1.ClusterSpec{
 					ImageName: "postgres:16.1",
 				},
+				Status: apiv1.ClusterStatus{
+					Image: "test",
+					PGDataImageInfo: &apiv1.ImageInfo{
+						Image:        "postgres:16.1",
+						MajorVersion: 16,
+					},
+				},
 			}
 			clusterNew := &apiv1.Cluster{
 				Spec: apiv1.ClusterSpec{
@@ -1296,6 +1333,13 @@ var _ = Describe("validate image name change", func() {
 				Spec: apiv1.ClusterSpec{
 					ImageName: "postgres:17.1",
 				},
+				Status: apiv1.ClusterStatus{
+					Image: "postgres:17.1",
+					PGDataImageInfo: &apiv1.ImageInfo{
+						Image:        "postgres:17.1",
+						MajorVersion: 17,
+					},
+				},
 			}
 			clusterNew := &apiv1.Cluster{
 				Spec: apiv1.ClusterSpec{
@@ -1311,8 +1355,17 @@ var _ = Describe("validate image name change", func() {
 			Expect(v.validateImageChange(clusterNew, clusterOld)).To(HaveLen(1))
 		})
 		It("complains going from default imageName to different major imageCatalogRef", func() {
+			defaultVersion, err := pgversion.FromTag(reference.New(versions.DefaultImageName).Tag)
+			Expect(err).ToNot(HaveOccurred())
 			clusterOld := &apiv1.Cluster{
 				Spec: apiv1.ClusterSpec{},
+				Status: apiv1.ClusterStatus{
+					Image: versions.DefaultImageName,
+					PGDataImageInfo: &apiv1.ImageInfo{
+						Image:        versions.DefaultImageName,
+						MajorVersion: int(defaultVersion.Major()),
+					},
+				},
 			}
 			clusterNew := &apiv1.Cluster{
 				Spec: apiv1.ClusterSpec{
@@ -1361,6 +1414,13 @@ var _ = Describe("validate image name change", func() {
 						Major: 17,
 					},
 				},
+				Status: apiv1.ClusterStatus{
+					Image: "test",
+					PGDataImageInfo: &apiv1.ImageInfo{
+						Image:        "test",
+						MajorVersion: 17,
+					},
+				},
 			}
 			clusterNew := &apiv1.Cluster{
 				Spec: apiv1.ClusterSpec{
@@ -1378,6 +1438,13 @@ var _ = Describe("validate image name change", func() {
 							Kind: "ImageCatalog",
 						},
 						Major: 17,
+					},
+				},
+				Status: apiv1.ClusterStatus{
+					Image: "test",
+					PGDataImageInfo: &apiv1.ImageInfo{
+						Image:        "test",
+						MajorVersion: 17,
 					},
 				},
 			}
@@ -1399,6 +1466,13 @@ var _ = Describe("validate image name change", func() {
 						Major: 18,
 					},
 				},
+				Status: apiv1.ClusterStatus{
+					Image: "test",
+					PGDataImageInfo: &apiv1.ImageInfo{
+						Image:        "test",
+						MajorVersion: 18,
+					},
+				},
 			}
 			clusterNew := &apiv1.Cluster{
 				Spec: apiv1.ClusterSpec{},
@@ -1418,6 +1492,13 @@ var _ = Describe("validate image name change", func() {
 							Kind: "ImageCatalog",
 						},
 						Major: int(version.Major()),
+					},
+				},
+				Status: apiv1.ClusterStatus{
+					Image: "test",
+					PGDataImageInfo: &apiv1.ImageInfo{
+						Image:        "test",
+						MajorVersion: int(version.Major()),
 					},
 				},
 			}
