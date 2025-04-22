@@ -115,12 +115,13 @@ func getImageInfoFromImage(image string) (apiv1.ImageInfo, error) {
 
 	return apiv1.ImageInfo{
 		Image:        image,
-		MajorVersion: int(imageVersion.Major()),
+		MajorVersion: int(imageVersion.Major()), //nolint:gosec
 	}, nil
 }
 
-func (r *ClusterReconciler) getRequestedImageInfo(ctx context.Context, cluster *apiv1.Cluster) (apiv1.ImageInfo,
-	error) {
+func (r *ClusterReconciler) getRequestedImageInfo(
+	ctx context.Context, cluster *apiv1.Cluster,
+) (apiv1.ImageInfo, error) {
 	contextLogger := log.FromContext(ctx)
 
 	// If ImageName is defined and different from the current image in the status, we update the status
