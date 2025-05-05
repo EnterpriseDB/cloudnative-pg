@@ -144,6 +144,7 @@ EDB
 EKS
 EOF
 EOL
+ESO
 EmbeddedObjectMetadata
 EnablePDB
 EncryptionType
@@ -200,6 +201,7 @@ IfNotPresent
 ImageCatalog
 ImageCatalogRef
 ImageCatalogSpec
+ImageInfo
 ImportSource
 InfoSec
 Innocenti
@@ -210,6 +212,7 @@ Istio's
 JSON
 Jihyuk
 Jitendra
+KV
 Karpenter
 KinD
 Krew
@@ -296,6 +299,7 @@ PGAudit
 PGDATA
 PGDG
 PGData
+PGDataImageInfo
 PGSQL
 PKI
 PODNAME
@@ -365,6 +369,7 @@ PublicationTargetAllTables
 PublicationTargetObject
 PublicationTargetTable
 PullPolicy
+PushSecret
 QoS
 Quaresima
 QuickStart
@@ -429,6 +434,7 @@ Seccomp
 SeccompProfile
 SecretKeySelector
 SecretRefs
+SecretStore
 SecretVersion
 SecretsResourceVersion
 SecurityProfiles
@@ -964,6 +970,7 @@ lsn
 lt
 lz
 macOS
+majorVersion
 majorVersionUpgradeFromImage
 malcolm
 mallocs
@@ -1071,6 +1078,7 @@ pgAdmin
 pgBouncer
 pgBouncerIntegration
 pgBouncerSecrets
+pgDataImageInfo
 pgDumpExtraOptions
 pgRestoreExtraOptions
 pgSQL
