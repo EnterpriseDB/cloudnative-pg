@@ -676,4 +676,99 @@ var _ = Describe("managedResources", func() {
 			Expect(names).To(BeEmpty())
 		})
 	})
+
+	// Tests for the safety net preconditions in reconcileResources().
+	// The safety net clears stuck scaling phases when:
+	//   cluster.IsScalingPhase() && instances == desired && no running jobs && all instances active
+	Context("safety net preconditions", func() {
+		activePod := func(name string) corev1.Pod {
+			return corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: name},
+				Status:     corev1.PodStatus{Phase: corev1.PodRunning},
+			}
+		}
+
+		pendingPod := func(name string) corev1.Pod {
+			return corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: name},
+				Status:     corev1.PodStatus{Phase: corev1.PodPending},
+			}
+		}
+
+		failedJob := func(name string) batchv1.Job {
+			return batchv1.Job{
+				ObjectMeta: metav1.ObjectMeta{Name: name},
+				Status: batchv1.JobStatus{
+					Conditions: []batchv1.JobCondition{
+						{
+							Type:   batchv1.JobFailed,
+							Status: corev1.ConditionTrue,
+						},
+					},
+				},
+			}
+		}
+
+		It("all conditions met: failed job + active instances + scaling phase", func() {
+			cluster := &apiv1.Cluster{
+				Spec:   apiv1.ClusterSpec{Instances: 3},
+				Status: apiv1.ClusterStatus{Phase: apiv1.PhaseCreatingReplica, Instances: 3},
+			}
+			resources := &managedResources{
+				instances: corev1.PodList{Items: []corev1.Pod{
+					activePod("pod-1"), activePod("pod-2"), activePod("pod-3"),
+				}},
+				jobs: batchv1.JobList{Items: []batchv1.Job{failedJob("failed-join")}},
+			}
+
+			Expect(cluster.IsScalingPhase()).To(BeTrue())
+			Expect(cluster.Status.Instances).To(Equal(cluster.Spec.Instances))
+			Expect(resources.runningJobNames()).To(BeEmpty())
+			Expect(resources.allInstancesAreActive()).To(BeTrue())
+		})
+
+		It("should NOT fire when instances don't match desired count", func() {
+			cluster := &apiv1.Cluster{
+				Spec:   apiv1.ClusterSpec{Instances: 3},
+				Status: apiv1.ClusterStatus{Phase: apiv1.PhaseCreatingReplica, Instances: 2},
+			}
+
+			Expect(cluster.IsScalingPhase()).To(BeTrue())
+			Expect(cluster.Status.Instances).NotTo(Equal(cluster.Spec.Instances))
+		})
+
+		It("should NOT fire when a running job exists alongside a failed one", func() {
+			resources := &managedResources{
+				jobs: batchv1.JobList{Items: []batchv1.Job{
+					failedJob("failed-join"),
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "running-join"},
+						Status:     batchv1.JobStatus{Succeeded: 0},
+					},
+				}},
+			}
+
+			Expect(resources.runningJobNames()).NotTo(BeEmpty())
+		})
+
+		It("should NOT fire when some instances are not active", func() {
+			resources := &managedResources{
+				instances: corev1.PodList{Items: []corev1.Pod{
+					activePod("pod-1"), activePod("pod-2"), pendingPod("pod-3"),
+				}},
+				jobs: batchv1.JobList{Items: []batchv1.Job{failedJob("failed-join")}},
+			}
+
+			Expect(resources.runningJobNames()).To(BeEmpty())
+			Expect(resources.allInstancesAreActive()).To(BeFalse())
+		})
+
+		It("should NOT fire when phase is not a scaling phase", func() {
+			cluster := &apiv1.Cluster{
+				Status: apiv1.ClusterStatus{Phase: apiv1.PhaseHealthy},
+			}
+
+			Expect(cluster.IsScalingPhase()).To(BeFalse())
+		})
+	})
 })
