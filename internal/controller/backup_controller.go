@@ -113,7 +113,7 @@ func NewBackupReconciler(
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get
 
 // Reconcile is the main reconciliation loop
-func (r *BackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *BackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:gocognit
 	contextLogger, ctx := log.SetupLogger(ctx)
 	contextLogger.Debug(fmt.Sprintf("reconciling object %#q", req.NamespacedName))
 
@@ -123,6 +123,11 @@ func (r *BackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			return ctrl.Result{}, reconcile.TerminalError(err)
 		}
 		return ctrl.Result{}, err
+	}
+
+	if utils.IsReconciliationDisabled(backup.GetMetadata()) {
+		contextLogger.Warning("Disable reconciliation loop annotation set, skipping the reconciliation.")
+		return ctrl.Result{}, nil
 	}
 
 	switch backup.Status.Phase {
