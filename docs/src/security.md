@@ -7,8 +7,10 @@ title: Security
 # Security
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
-This section contains information about security for CloudNativePG,
-that are analyzed at 3 different layers: Code, Container and Cluster.
+CloudNativePG is designed to be secure by default, following the "Least Privilege"
+principle across all layers of the stack. This document outlines our security
+governance, supply chain integrity, and the technical controls analyzed at three
+distinct layers: Code, Container, and Cluster.
 
 :::warning
     The information contained in this page must not exonerate you from
@@ -22,6 +24,33 @@ that are analyzed at 3 different layers: Code, Container and Cluster.
     blog article to get a better understanding and context of the approach EDB
     has taken with security in CloudNativePG.
 :::
+
+---
+
+## Governance and Trust
+
+### Vulnerability Reporting
+
+:::important
+Please do not report security vulnerabilities through public GitHub issues.
+:::
+
+CloudNativePG follows a coordinated disclosure model. For instructions on how to
+report a vulnerability privately, please refer to our
+[Security Policy on GitHub](https://github.com/cloudnative-pg/cloudnative-pg/blob/main/SECURITY.md).
+
+### Release Integrity and Supply Chain
+
+CloudNativePG follows the [OpenSSF Software Producer Security (OSPS) Baseline](https://baseline.openssf.org/).
+All official release assets, including Kubernetes manifests and container
+images, are cryptographically signed and verifiable.
+
+For quick-start instructions on verifying these assets during installation,
+see the [Installation Guide](installation_upgrade.md#verifying-release-assets).
+Detailed information on our [Signatures](#image-signatures) and [Attestations](#attestations)
+can be found below.
+
+---
 
 ## Code
 
@@ -106,7 +135,7 @@ command with the image digest:
 
 ```shell
 cosign verify ghcr.io/cloudnative-pg/cloudnative-pg@sha256:<DIGEST> \
-  --certificate-identity-regexp="^https://github.com/cloudnative-pg/cloudnative-pg/" \
+  --certificate-identity-regexp="^https://github.com/cloudnative-pg/cloudnative-pg/.github/workflows/release-publish.yml@refs/tags/v" \
   --certificate-oidc-issuer="https://token.actions.githubusercontent.com"
 ```
 
