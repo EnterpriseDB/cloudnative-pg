@@ -54,8 +54,8 @@ var _ = Describe("ImageVolume Extensions", Label(tests.LabelImageVolumeExtension
 		if testLevelEnv.Depth < int(level) {
 			Skip("Test depth is lower than the amount requested for this test")
 		}
-		if !IsLocal() {
-			Skip("This test is only run on local cluster")
+		if !(IsKind() || IsK3D()) {
+			Skip("This test only runs on kind or k3d clusters")
 		}
 		if env.PostgresVersion < 18 {
 			Skip("This test is only run on PostgreSQL v18 or greater")
