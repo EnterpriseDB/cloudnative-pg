@@ -137,6 +137,7 @@ DatabaseRoleRef
 DatabaseRoleSpec
 DatabaseRoleState
 DatabaseRoleStatus
+DatabaseRoles
 DatabaseSpec
 DatabaseStatus
 DefaultAzureCredential
@@ -816,6 +817,7 @@ databaserole
 databaserolelist
 databaserolereclaimpolicy
 databaseroleref
+databaseroles
 databaserolespec
 databaserolestate
 databasespec
