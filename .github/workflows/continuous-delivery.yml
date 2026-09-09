@@ -347,7 +347,7 @@ jobs:
     if: |
       always() && !cancelled() &&
       needs.evaluate_options.result == 'success'
-    runs-on: ${{ fromJSON(needs.evaluate_options.outputs.runs_on) }}
+    runs-on: cnp-16c-64gb-600gb-arm64
     permissions:
       contents: read
       packages: write
@@ -705,7 +705,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.generate-jobs.outputs.kindMatrix) }}
-    runs-on: ${{ fromJSON(needs.evaluate_options.outputs.runs_on) }}
+    runs-on: cnp-16c-64gb-600gb-arm64
     env:
       # TEST_DEPTH determines the maximum test level the suite should be running
       TEST_DEPTH: ${{ needs.evaluate_options.outputs.test_level }}
@@ -904,7 +904,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.generate-jobs.outputs.k3dMatrix) }}
-    runs-on: ${{ fromJSON(needs.evaluate_options.outputs.runs_on) }}
+    runs-on: cnp-16c-64gb-600gb-arm64
     env:
       # TEST_DEPTH determines the maximum test level the suite should be running
       TEST_DEPTH: ${{ needs.evaluate_options.outputs.test_level }}
