@@ -1330,9 +1330,11 @@ jobs:
         # Diagnostic-only for the client-go/BeforeSuite hang bisect: dump
         # live cluster resource state every 30s while the suite runs, to
         # tell a real stuck resource apart from a client-side (transport)
-        # hang. Backgrounded so it doesn't block the test run; killed after.
+        # hang. Backgrounded in the SAME step as the test run so its output
+        # interleaves into this step's own log (a background process started
+        # in an earlier step writes nowhere useful once that step ends).
         # Not meant to be merged.
-        name: Start diagnostic resource dump (bisect only)
+        name: Run E2E tests
         run: |
           (
             while true; do
@@ -1346,14 +1348,11 @@ jobs:
               sleep 30
             done
           ) &
-          echo "diag_pid=$!" >> "$GITHUB_ENV"
-      -
-        name: Run E2E tests
-        run: hack/e2e/run-e2e.sh
-      -
-        name: Stop diagnostic resource dump (bisect only)
-        if: always()
-        run: kill "${diag_pid}" 2>/dev/null || true
+          diag_pid=$!
+          hack/e2e/run-e2e.sh
+          rc=$?
+          kill "${diag_pid}" 2>/dev/null || true
+          exit $rc
       -
         # Summarize the failed E2E test cases if there are any
         name: Report failed E2E tests
