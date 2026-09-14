@@ -1299,7 +1299,8 @@ jobs:
               sed '/^ *#/d;/^ *$/d' | \
               yq e ".spec.storage.storageClassDeviceSets[].volumeClaimTemplates[].spec.resources.requests.storage = \"50Gi\" |
                 .spec.storage.storageClassDeviceSets[].volumeClaimTemplates[].spec.storageClassName = \"${STORAGECLASSNAME}\" |
-                .spec.mon.volumeClaimTemplate.spec.storageClassName = \"${STORAGECLASSNAME}\" " - | \
+                .spec.mon.volumeClaimTemplate.spec.storageClassName = \"${STORAGECLASSNAME}\" |
+                .spec.security.cephx.csi.keyType = \"aes\" " - | \
               kubectl apply -f -
             while true; do
               output=$( kubectl get deploy -n rook-ceph -l app=rook-ceph-osd --no-headers -o name )
