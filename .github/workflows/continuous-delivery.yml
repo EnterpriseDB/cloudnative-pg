@@ -1308,11 +1308,18 @@ jobs:
             kubectl wait --for=condition=Established --timeout=60s \
               $(kubectl get -f /tmp/rook-csi-operator.yaml -o name | grep ^customresourcedefinition)
             curl -H "Authorization: Bearer ${GITHUB_TOKEN}" --retry 5 --retry-delay 2 -fsSL ${ROOK_BASE_URL}/operator.yaml | kubectl apply -f -
+            # keyType "aes" below is required until every AKS node runs
+            # Linux kernel 7.0+: Rook's aes256k CephX key (the CVE-2025-30156
+            # fix) can't be loaded by an older kernel's RBD client, so the
+            # object-store PVC mount fails forever. Drop the pin once that's
+            # no longer true. Rook's own cluster.yaml example already has
+            # this line, for the same reason.
             curl -H "Authorization: Bearer ${GITHUB_TOKEN}" --retry 5 --retry-delay 2 -fsSL ${ROOK_BASE_URL}/cluster-on-pvc.yaml | \
               sed '/^ *#/d;/^ *$/d' | \
               yq e ".spec.storage.storageClassDeviceSets[].volumeClaimTemplates[].spec.resources.requests.storage = \"50Gi\" |
                 .spec.storage.storageClassDeviceSets[].volumeClaimTemplates[].spec.storageClassName = \"${STORAGECLASSNAME}\" |
-                .spec.mon.volumeClaimTemplate.spec.storageClassName = \"${STORAGECLASSNAME}\" " - | \
+                .spec.mon.volumeClaimTemplate.spec.storageClassName = \"${STORAGECLASSNAME}\" |
+                .spec.security.cephx.csi.keyType = \"aes\" " - | \
               kubectl apply -f -
             for i in $(seq 1 150); do
               output=$( kubectl get deploy -n rook-ceph -l app=rook-ceph-osd --no-headers -o name )
