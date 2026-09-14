@@ -1337,14 +1337,18 @@ jobs:
         name: Run E2E tests
         run: |
           (
+            # Runs in the background for the whole test: a normal "nothing
+            # found yet" (e.g. grep with no match before the object-store pod
+            # exists) must never kill the loop, so -e/pipefail are off here.
+            set +e +o pipefail
             while true; do
               echo "=== $(date -u +%H:%M:%S) resource dump ==="
               kubectl get pods,pvc,deploy -A -o wide
               echo "--- recent events ---"
               kubectl get events -A --sort-by=.lastTimestamp | tail -20
               echo "--- object-store deployment/pods (if present) ---"
-              kubectl get deploy,pod,pvc -A -l app=object-store -o wide 2>/dev/null || true
-              kubectl describe pod -A -l app=object-store 2>/dev/null | grep -A5 "Events:" || true
+              kubectl get deploy,pod,pvc -A -l app=object-store -o wide 2>/dev/null
+              kubectl describe pod -A -l app=object-store 2>/dev/null | grep -A5 "Events:"
               sleep 30
             done
           ) &
