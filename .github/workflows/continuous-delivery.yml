@@ -1343,8 +1343,8 @@ jobs:
               echo "--- recent events ---"
               kubectl get events -A --sort-by=.lastTimestamp | tail -20
               echo "--- object-store deployment/pods (if present) ---"
-              kubectl get deploy,pod,pvc -A -l app=object-store -o wide 2>/dev/null
-              kubectl describe pod -A -l app=object-store 2>/dev/null | grep -A5 "Events:"
+              kubectl get deploy,pod,pvc -A -l app=object-store -o wide 2>/dev/null || true
+              kubectl describe pod -A -l app=object-store 2>/dev/null | grep -A5 "Events:" || true
               sleep 30
             done
           ) &
