@@ -70,7 +70,7 @@ var _ = Describe("Volume space unavailable", Label(tests.LabelStorage), func() {
 		By("filling the WAL volume", func() {
 			timeout := time.Minute * 5
 
-			_, _, err := exec.CommandInInstancePod(
+			_, stderr, err := exec.CommandInInstancePod(
 				env.Ctx, env.Client, env.Interface, env.RestClientConfig,
 				exec.PodLocator{
 					Namespace: namespace,
@@ -79,6 +79,7 @@ var _ = Describe("Volume space unavailable", Label(tests.LabelStorage), func() {
 				&timeout,
 				"dd", "if=/dev/zero", "of="+walDir+"/fill", "bs=1M",
 			)
+			GinkgoWriter.Printf("dd error: stderr=%q err=%v\n", stderr, err)
 			Expect(err).To(HaveOccurred())
 			// FIXME: check if the error is due to the disk being full
 		})
