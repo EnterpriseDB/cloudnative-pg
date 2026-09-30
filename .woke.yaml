@@ -3,6 +3,7 @@ ignore_files:
   - tests/e2e/fixtures/upgrade/current-manifest.yaml
   - tests/e2e/fixtures/upgrade/current-manifest-prime.yaml
   - hack/install-config.yaml.template
+  - hack/install-config.gcp.yaml.template
 
 # Default internal rules refer https://github.com/get-woke/woke/blob/main/internal/rule/default.yaml
 rules:

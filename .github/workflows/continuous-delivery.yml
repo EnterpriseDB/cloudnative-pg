@@ -1922,8 +1922,12 @@ jobs:
           done < <(aws ec2 describe-volumes --region "${REGION_NAME}" --query 'Volumes[?not_null(Tags[?Key == `kubernetes.io/cluster/'"$CLUSTER_NAME"'` && Value == `owned`].Value)].VolumeId' | jq -r '.[]' || true)
 
   # GKE Secrets required
-  # secrets.GCP_SERVICE_ACCOUNT
   # secrets.GCP_PROJECT_ID
+  # GKE Variables required for Workload Identity Federation:
+  # vars.GCP_WORKLOAD_IDENTITY_PROVIDER
+  # vars.GCP_WIF_SERVICE_ACCOUNT
+  # Legacy, used only while vars.GCP_WORKLOAD_IDENTITY_PROVIDER is unset:
+  # secrets.GCP_SERVICE_ACCOUNT (service account key JSON)
 
   e2e-gke:
     name: Run E2E on Google GKE
@@ -1941,6 +1945,10 @@ jobs:
       max-parallel: 6
       matrix: ${{ fromJSON(needs.generate-jobs.outputs.gkeMatrix) }}
     runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      id-token: write
+      packages: read
     env:
       # TEST_DEPTH determines the maximum test level the suite should be running
       TEST_DEPTH: ${{ needs.evaluate_options.outputs.test_level }}
@@ -2021,8 +2029,18 @@ jobs:
           SHORT_ID=$( echo "${MATRIX}" | tr -d '_.-' | tr '[:upper:]' '[:lower:]')
           echo "CLUSTER_NAME=${E2E_SUFFIX}-${GITHUB_RUN_NUMBER}-${SHORT_ID}" >> $GITHUB_ENV
       -
-        name: Authenticate to Google Cloud
+        name: Authenticate to Google Cloud (Workload Identity Federation)
+        if: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' }}
         id: 'auth'
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_WIF_SERVICE_ACCOUNT }}
+      -
+        # TODO: remove once every repository has the WIF variables
+        name: Authenticate to Google Cloud (service account key)
+        if: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER == '' }}
+        id: 'auth-legacy'
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
           credentials_json: '${{ secrets.GCP_SERVICE_ACCOUNT }}'
@@ -2240,6 +2258,9 @@ jobs:
   # secrets.AWS_EKS_ADMIN_IAM_ROLES
   # secrets.AWS_ACCESS_KEY_ID
   # secrets.AWS_SECRET_ACCESS_KEY
+  # The platform is selected by vars.OPENSHIFT_PLATFORM ('aws' by default, or 'gcp'),
+  # which additionally requires vars.OPENSHIFT_GCP_BASE_DOMAIN, secrets.GCP_PROJECT_ID
+  # and the GCP authentication described in the GKE section above.
 
   e2e-openshift:
     name: Run E2E on OpenShift
@@ -2260,6 +2281,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
     env:
       # TEST_DEPTH determines the maximum test level the suite should be running
       TEST_DEPTH: ${{ needs.evaluate_options.outputs.test_level }}
@@ -2280,9 +2302,12 @@ jobs:
       DEBUG: "true"
       BUILD_IMAGE: "false"
       CONTROLLER_IMG: ${{ needs.generate-jobs.outputs.controller_img }}
-      E2E_DEFAULT_STORAGE_CLASS: gp3-csi
-      E2E_CSI_STORAGE_CLASS: gp3-csi
-      E2E_DEFAULT_VOLUMESNAPSHOT_CLASS: csi-aws-vsc
+
+      # OPENSHIFT_PLATFORM selects where the cluster is created: aws (default) or gcp
+      OPENSHIFT_PLATFORM: ${{ vars.OPENSHIFT_PLATFORM || 'aws' }}
+      E2E_DEFAULT_STORAGE_CLASS: ${{ vars.OPENSHIFT_PLATFORM == 'gcp' && 'standard-csi' || 'gp3-csi' }}
+      E2E_CSI_STORAGE_CLASS: ${{ vars.OPENSHIFT_PLATFORM == 'gcp' && 'standard-csi' || 'gp3-csi' }}
+      E2E_DEFAULT_VOLUMESNAPSHOT_CLASS: ${{ vars.OPENSHIFT_PLATFORM == 'gcp' && 'csi-gce-pd-vsc' || 'csi-aws-vsc' }}
 
       TEST_CLOUD_VENDOR: "ocp"
 
@@ -2293,8 +2318,12 @@ jobs:
       AWS_REGION: eu-central-1
       AWS_EKS_ADMIN_IAM_ROLES: ${{ secrets.AWS_EKS_ADMIN_IAM_ROLES }}
 
+      # GCP configuration
+      GCP_BASE_DOMAIN: ${{ vars.OPENSHIFT_GCP_BASE_DOMAIN }}
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GKE_REGION || 'europe-west4' }}
+
       REDHAT_PULL: ${{ secrets.REDHAT_PULL }}
-      SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
 
     steps:
       -
@@ -2353,10 +2382,29 @@ jobs:
           openshift-install: ${{ env.K8S_VERSION }}
           oc: ${{ env.K8S_VERSION }}
       -
+        name: Authenticate to Google Cloud (Workload Identity Federation)
+        if: ${{ env.OPENSHIFT_PLATFORM == 'gcp' && vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' }}
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_WIF_SERVICE_ACCOUNT }}
+      -
+        # TODO: remove once every repository has the WIF variables
+        name: Authenticate to Google Cloud (service account key)
+        if: ${{ env.OPENSHIFT_PLATFORM == 'gcp' && vars.GCP_WORKLOAD_IDENTITY_PROVIDER == '' }}
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          credentials_json: '${{ secrets.GCP_SERVICE_ACCOUNT }}'
+      -
         name: Install OpenShift Cluster ${{ env.K8S_VERSION }}
         timeout-minutes: 60
         run: |
-          envsubst < hack/install-config.yaml.template > hack/install-config.yaml
+          if [ "${OPENSHIFT_PLATFORM}" = "gcp" ]; then
+            TEMPLATE=hack/install-config.gcp.yaml.template
+          else
+            TEMPLATE=hack/install-config.yaml.template
+          fi
+          envsubst < "${TEMPLATE}" > hack/install-config.yaml
           openshift-install create cluster --dir hack/ --log-level debug
       -
         name: Install operator-sdk
