@@ -22,6 +22,7 @@ package lease
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"time"
 
 	coordinationv1 "k8s.io/api/coordination/v1"
@@ -108,7 +109,7 @@ var _ = Describe("Runnable.Release", func() {
 		r := newRunnable(kubeClient)
 		createLease(ctx, kubeClient, thisPod)
 		// Simulate the lease having been acquired by this run.
-		r.heldOnce.Do(func() { close(r.heldCh) })
+		close(r.heldCh)
 
 		Expect(r.Release(ctx)).To(Succeed())
 		Expect(getHolder(ctx, kubeClient)).To(BeEmpty())
@@ -209,7 +210,7 @@ var _ = Describe("Runnable.Acquire", func() {
 	// markHeld simulates the lease having been acquired so Acquire can return
 	// without a running leader-election loop behind it.
 	markHeld := func(r *Runnable) {
-		r.heldOnce.Do(func() { close(r.heldCh) })
+		close(r.heldCh)
 	}
 
 	BeforeEach(func() {
@@ -538,10 +539,40 @@ var _ = Describe("Runnable.tryTakeOver", func() {
 		Expect(ptr.Deref(getLease(ctx, kubeClient).Spec.HolderIdentity, "")).To(Equal(thisPod))
 	})
 
-	It("keeps renewing its own lease after another pod became the target primary", func(ctx context.Context) {
+	It("renews its own lease when another pod is the target primary, as a primary mid-switchover does",
+		func(ctx context.Context) {
+			// Whether a non-target holder keeps the lease is the reconciler's
+			// call (Yield): a primary keeps renewing until it has stopped, a
+			// replica that never promoted yields. The loop itself renews.
+			kubeClient := fake.NewClientset()
+			r := newRunnable(kubeClient)
+			setTarget(r, otherPod)
+			putLease(ctx, kubeClient, thisPod, time.Now().Add(-10*time.Second), 15)
+
+			acquired, err := r.tryTakeOver(ctx)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(acquired).To(BeTrue())
+		})
+
+	It("does not renew its own record after a yield while another pod is the target primary",
+		func(ctx context.Context) {
+			kubeClient := fake.NewClientset()
+			r := newRunnable(kubeClient)
+			setTarget(r, otherPod)
+			r.yielded.Store(true)
+			putLease(ctx, kubeClient, thisPod, time.Now().Add(-10*time.Second), 15)
+			before := getLease(ctx, kubeClient)
+
+			acquired, err := r.tryTakeOver(ctx)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(acquired).To(BeFalse())
+			Expect(getLease(ctx, kubeClient).Spec.RenewTime).To(Equal(before.Spec.RenewTime))
+		})
+
+	It("takes its own record back after a yield once it is the target primary again", func(ctx context.Context) {
 		kubeClient := fake.NewClientset()
 		r := newRunnable(kubeClient)
-		setTarget(r, otherPod)
+		r.yielded.Store(true)
 		putLease(ctx, kubeClient, thisPod, time.Now().Add(-10*time.Second), 15)
 
 		acquired, err := r.tryTakeOver(ctx)
@@ -605,6 +636,158 @@ var _ = Describe("Runnable.tryTakeOver", func() {
 			// earlier version of this fix.
 			Expect(err).NotTo(HaveOccurred())
 			Expect(acquired).To(BeTrue())
+		})
+})
+
+var _ = Describe("Runnable.Yield", func() {
+	const (
+		namespace   = "test-ns"
+		clusterName = "test-cluster"
+		thisPod     = "test-cluster-1"
+		otherPod    = "test-cluster-2"
+	)
+
+	var (
+		kubeClient *fake.Clientset
+		r          *Runnable
+		hardStops  atomic.Int32
+		stopRun    func()
+	)
+
+	setTarget := func(target string) {
+		r.instance.SetCluster(&apiv1.Cluster{Status: apiv1.ClusterStatus{TargetPrimary: target}})
+	}
+
+	getHolder := func(ctx context.Context) string {
+		lease, err := kubeClient.CoordinationV1().Leases(namespace).Get(ctx, clusterName, metav1.GetOptions{})
+		Expect(err).NotTo(HaveOccurred())
+		return ptr.Deref(lease.Spec.HolderIdentity, "")
+	}
+
+	getRenewTime := func(ctx context.Context) time.Time {
+		lease, err := kubeClient.CoordinationV1().Leases(namespace).Get(ctx, clusterName, metav1.GetOptions{})
+		Expect(err).NotTo(HaveOccurred())
+		return lease.Spec.RenewTime.Time
+	}
+
+	// A released lease, with this pod as the target: the run loop claims it on
+	// its first poll.
+	BeforeEach(func(ctx context.Context) {
+		kubeClient = fake.NewClientset(&coordinationv1.Lease{
+			ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: clusterName},
+			Spec:       coordinationv1.LeaseSpec{HolderIdentity: ptr.To("")},
+		})
+		r = New(kubeClient, postgres.NewInstance().
+			WithNamespace(namespace).
+			WithPodName(thisPod).
+			WithClusterName(clusterName))
+		r.config.RetryPeriod = 10 * time.Millisecond
+		r.config.RenewDeadline = 50 * time.Millisecond
+		r.config.LeaseDuration = 200 * time.Millisecond
+		// Any stale lease is a step-down; only a running monitor can get here.
+		r.checkStepDown = func(*apiv1.Cluster, string) (bool, error) { return true, nil }
+		hardStops.Store(0)
+		r.hardStop = func() { hardStops.Add(1) }
+		setTarget(thisPod)
+
+		// Not the node's ctx: Ginkgo cancels that one when BeforeEach returns,
+		// and the loop has to outlive it.
+		runCtx, cancelRun := context.WithCancel(context.Background())
+		returned := make(chan struct{})
+		go func(r *Runnable) {
+			defer GinkgoRecover()
+			defer close(returned)
+			Expect(r.Start(runCtx)).To(Succeed())
+		}(r)
+		stopRun = func() {
+			cancelRun()
+			Eventually(returned).Should(BeClosed())
+		}
+		DeferCleanup(func() { stopRun() })
+
+		Expect(r.Acquire(ctx, r.config)).To(Succeed())
+		Expect(getHolder(ctx)).To(Equal(thisPod))
+	})
+
+	It("stops renewing without writing and competes again only once this pod is the target again",
+		func(ctx context.Context) {
+			setTarget(otherPod)
+			Expect(r.Yield(ctx)).To(Succeed())
+
+			// Nothing is written: the record keeps naming this pod and stops
+			// changing, so the new target sees it go stale. Not held any more:
+			// Acquire blocks instead of returning on the closed channel of the
+			// earlier hold.
+			renewedAt := getRenewTime(ctx)
+			Expect(getHolder(ctx)).To(Equal(thisPod))
+			acquireCtx, cancel := context.WithTimeout(ctx, 3*r.config.LeaseDuration)
+			defer cancel()
+			Expect(r.Acquire(acquireCtx, r.config)).To(MatchError(context.DeadlineExceeded))
+			Expect(getHolder(ctx)).To(Equal(thisPod))
+			Expect(getRenewTime(ctx)).To(Equal(renewedAt))
+
+			setTarget(thisPod)
+			Expect(r.Acquire(ctx, r.config)).To(Succeed())
+			Expect(getHolder(ctx)).To(Equal(thisPod))
+			Expect(getRenewTime(ctx).After(renewedAt)).To(BeTrue())
+		})
+
+	It("stops the step-down monitor, so a yielded replica is never stopped", func(ctx context.Context) {
+		commands := r.instance.GetInstanceCommandChan()
+		setTarget(otherPod)
+		Expect(r.Yield(ctx)).To(Succeed())
+
+		// The released lease is never renewed, so a monitor still running
+		// would decide the step-down within RenewDeadline and force a stop
+		// within LeaseDuration.
+		Consistently(hardStops.Load, 3*r.config.LeaseDuration).Should(BeZero())
+		Expect(commands).NotTo(Receive())
+	})
+
+	It("is a no-op when the lease is not held", func(ctx context.Context) {
+		setTarget(otherPod)
+		Expect(r.Yield(ctx)).To(Succeed())
+		Expect(r.Yield(ctx)).To(Succeed())
+	})
+
+	It("ends a hold that is taken while the yield comes in, unless the pod is the target again",
+		func(ctx context.Context) {
+			// A fresh runnable that has not taken the lease yet: there is no hold
+			// for Yield to end, so it only leaves its mark.
+			fresh := New(kubeClient, postgres.NewInstance().
+				WithNamespace(namespace).
+				WithPodName(thisPod).
+				WithClusterName(clusterName))
+			fresh.instance.SetCluster(&apiv1.Cluster{Status: apiv1.ClusterStatus{TargetPrimary: otherPod}})
+			Expect(fresh.Yield(ctx)).To(Succeed())
+
+			ended := fresh.newHold(ctx, ctx)
+			Expect(ended.ctx.Err()).To(HaveOccurred())
+			Expect(fresh.heldCh).NotTo(BeClosed())
+
+			fresh.instance.SetCluster(&apiv1.Cluster{Status: apiv1.ClusterStatus{TargetPrimary: thisPod}})
+			held := fresh.newHold(ctx, ctx)
+			DeferCleanup(held.cancel)
+			Expect(held.ctx.Err()).NotTo(HaveOccurred())
+			Expect(fresh.heldCh).To(BeClosed())
+		})
+
+	It("does not count the designated primary of a replica cluster as the target primary", func() {
+		r.instance.SetCluster(&apiv1.Cluster{
+			Spec:   apiv1.ClusterSpec{ReplicaCluster: &apiv1.ReplicaClusterConfiguration{Enabled: ptr.To(true)}},
+			Status: apiv1.ClusterStatus{TargetPrimary: thisPod},
+		})
+		Expect(r.isTargetPrimary()).To(BeFalse())
+	})
+
+	It("does not blank the record at process exit, so the new target waits the full window",
+		func(ctx context.Context) {
+			setTarget(otherPod)
+			Expect(r.Yield(ctx)).To(Succeed())
+			// As in cmd.go, Release runs once the runnables have stopped.
+			stopRun()
+			Expect(r.Release(ctx)).To(Succeed())
+			Expect(getHolder(ctx)).To(Equal(thisPod))
 		})
 })
 

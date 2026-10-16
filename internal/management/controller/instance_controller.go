@@ -1279,12 +1279,53 @@ func (r *InstanceReconciler) acquirePrimaryLease(ctx context.Context, cluster *a
 	return r.primaryLeaseAcquirer.Acquire(acquireCtx, leaseConfig)
 }
 
+// yieldPrimaryLease stops renewing the primary lease when this pod holds it but
+// is not the target primary and has never been asked to promote: a target that
+// was replaced before it promoted must behave like a replica that was never the
+// target, or its renewals would keep the new target from ever taking the lease.
+// A primary that is no longer the target (a switchover in progress) keeps
+// renewing until it has stopped and Release runs at process exit.
+//
+// This runs in the goroutine that promotes, after any earlier promotion has
+// returned, and promotionRequested covers a promotion that returned an error
+// while PostgreSQL may still complete it, so standby.signal can be trusted
+// here.
+func (r *InstanceReconciler) yieldPrimaryLease(
+	ctx context.Context,
+	cluster *apiv1.Cluster,
+) (reconcile.Result, error) {
+	if r.promotionRequested {
+		return reconcile.Result{}, nil
+	}
+	isPrimary, err := r.instance.IsPrimary()
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	if isPrimary {
+		return reconcile.Result{}, nil
+	}
+
+	// Yield stops the renewals at once and then waits for the renewal loop to
+	// return, which may take a renewal in flight to time out. The wait is
+	// bounded so an unreachable API server cannot hold the reconcile loop.
+	yieldCtx, cancel := context.WithTimeout(ctx, cluster.GetPrimaryLeaseRenewDeadline())
+	defer cancel()
+	if err := r.primaryLeaseAcquirer.Yield(yieldCtx); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			log.FromContext(ctx).Warning("Primary lease renewal loop still stopping, retrying")
+			return reconcile.Result{RequeueAfter: cluster.GetPrimaryLeaseRetryPeriod()}, nil
+		}
+		return reconcile.Result{}, fmt.Errorf("yielding primary lease: %w", err)
+	}
+	return reconcile.Result{}, nil
+}
+
 // Reconciler primary logic. DB needed.
 func (r *InstanceReconciler) reconcilePrimary(ctx context.Context, cluster *apiv1.Cluster) (reconcile.Result, error) {
 	contextLogger := log.FromContext(ctx)
 
 	if cluster.Status.TargetPrimary != r.instance.GetPodName() || cluster.IsReplica() {
-		return reconcile.Result{}, nil
+		return r.yieldPrimaryLease(ctx, cluster)
 	}
 
 	if err := r.acquirePrimaryLease(ctx, cluster); err != nil {
@@ -1367,6 +1408,7 @@ func (r *InstanceReconciler) handlePromotion(ctx context.Context, cluster *apiv1
 
 	contextLogger.Info("I'm the target primary, applying WALs and promoting my instance")
 	// I must promote my instance here
+	r.promotionRequested = true
 	err := r.instance.PromoteAndWait(ctx)
 	if err != nil {
 		return fmt.Errorf("error promoting instance: %w", err)
